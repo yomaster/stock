@@ -28,7 +28,14 @@ class SettingsController extends Controller
             'general'  => ['title' => 'ทั่วไป', 'icon' => '⚙️'],
         ];
 
-        return view('settings.index', compact('groups', 'groupLabels'));
+        // Webhook URL สำหรับนำไปตั้งใน LINE Developers Console
+        // LINE บังคับ https — ถ้าไม่ใช่ localhost ให้บังคับ https เผื่อ proxy ส่ง scheme เป็น http
+        $webhookUrl = url('/webhook/line');
+        if (!str_contains($webhookUrl, '127.0.0.1') && !str_contains($webhookUrl, 'localhost')) {
+            $webhookUrl = preg_replace('#^http://#', 'https://', $webhookUrl);
+        }
+
+        return view('settings.index', compact('groups', 'groupLabels', 'webhookUrl'));
     }
 
     public function update(Request $request)

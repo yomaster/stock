@@ -53,6 +53,25 @@
                     @endif
                 </div>
             @endforeach
+
+            {{-- Webhook URL (เฉพาะการ์ด LINE) — สำหรับนำไปตั้งใน LINE Developers Console --}}
+            @if($groupKey === 'line')
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">Webhook URL</label>
+                    <div class="flex gap-2">
+                        <input id="webhookUrl" type="text" readonly value="{{ $webhookUrl }}"
+                            class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-700 bg-slate-50 font-mono select-all">
+                        <button type="button" id="copyWebhookBtn" data-copy-target="#webhookUrl"
+                            class="shrink-0 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition active:scale-[0.97] flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            คัดลอก
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1.5">นำไปวางใน LINE Developers Console → Messaging API → Webhook URL แล้วกด Verify + เปิด Use webhook</p>
+                </div>
+            @endif
         </div>
     </div>
     @endforeach
@@ -68,3 +87,23 @@
 </form>
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const btn = document.getElementById('copyWebhookBtn');
+    if (!btn) return;
+    btn.addEventListener('click', async function () {
+        const input = document.querySelector(btn.dataset.copyTarget);
+        try {
+            await navigator.clipboard.writeText(input.value);
+        } catch (e) {
+            // fallback สำหรับ browser เก่า / ไม่ใช่ https
+            input.select();
+            document.execCommand('copy');
+        }
+        window.toast('success', 'คัดลอก Webhook URL แล้ว');
+    });
+});
+</script>
+@endpush
