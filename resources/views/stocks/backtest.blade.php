@@ -143,6 +143,7 @@
 @push('scripts')
 @if(isset($result) && $result['success'])
 <script>
+document.addEventListener('DOMContentLoaded', function () {
 const labels   = @json($chartLabels->values());
 const invested = @json(array_values($chartInvested));
 const value    = @json(array_values($chartValue));
@@ -180,6 +181,7 @@ new Chart(document.getElementById('backtestChart'), {
             }
         }
     }
+});
 });
 </script>
 @endif

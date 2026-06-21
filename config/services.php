@@ -37,7 +37,8 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
-        'model'   => env('GEMINI_MODEL', 'gemini-2.0-flash'),
+        // gemini-2.0-flash มี free-tier quota = 0 สำหรับ key ใหม่ → ใช้ 2.5-flash ที่ใช้ฟรีได้จริง
+        'model'   => env('GEMINI_MODEL', 'gemini-2.5-flash'),
     ],
 
     'line' => [

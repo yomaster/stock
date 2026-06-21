@@ -44,13 +44,12 @@ class StockController extends Controller
 
     public function show(Stock $stock)
     {
-        // ราคาย้อนหลัง 1 ปี สำหรับกราฟ
+        // ราคาย้อนหลังสูงสุด 10 ปี — ส่งทั้งหมดให้ JS แล้วกรองช่วงปีฝั่ง client ผ่านปุ่มฟิลเตอร์
+        $tenYearsAgo = now()->subYears(10)->toDateString();
         $prices = StockPrice::where('stock_id', $stock->id)
-            ->orderBy('date', 'desc')
-            ->limit(365)
-            ->get()
-            ->sortBy('date')
-            ->values();
+            ->where('date', '>=', $tenYearsAgo)
+            ->orderBy('date', 'asc')
+            ->get(['date', 'close']);
 
         $latestPrice = $prices->last();
 
@@ -59,13 +58,20 @@ class StockController extends Controller
             ->orderBy('date', 'desc')
             ->first();
 
-        // ข่าวที่เกี่ยวข้อง
+        // ข่าวที่เกี่ยวข้องกับหุ้นตัวนี้โดยตรง
         $news = News::where('symbols', 'like', '%' . $stock->symbol . '%')
             ->orderBy('published_at', 'desc')
             ->limit(10)
             ->get();
 
-        return view('stocks.show', compact('stock', 'prices', 'latestPrice', 'analysis', 'news'));
+        // ถ้าไม่มีข่าวเฉพาะหุ้น (พบบ่อยกับ ETF เช่น VOO) → แสดงข่าวตลาดโดยรวมแทน
+        $newsIsFallback = false;
+        if ($news->isEmpty()) {
+            $news = News::orderBy('published_at', 'desc')->limit(6)->get();
+            $newsIsFallback = true;
+        }
+
+        return view('stocks.show', compact('stock', 'prices', 'latestPrice', 'analysis', 'news', 'newsIsFallback'));
     }
 
     public function backtestForm(Stock $stock)
@@ -119,6 +125,51 @@ class StockController extends Controller
             $exchangeRate
         );
 
-        return view('stocks.analyze', compact('stock', 'result'));
+        // คำนวณ data สำหรับกราฟการเติบโต (ทำฝั่ง server เพื่อส่งให้ JS วาด)
+        $chartData = $result['success'] ? $this->buildProjectionChartData($result) : null;
+
+        // AJAX (fetch) → ตอบกลับเป็น JSON พร้อม HTML partial + chart data
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => $result['success'],
+                'html'    => view('stocks._analyze_result', compact('result'))->render(),
+                'chart'   => $chartData,
+            ]);
+        }
+
+        return view('stocks.analyze', compact('stock', 'result', 'chartData'));
+    }
+
+    /**
+     * สร้างชุดข้อมูลกราฟการเติบโต Bull/Base/Bear + เส้นเงินลงทุนสะสม
+     */
+    private function buildProjectionChartData(array $result): array
+    {
+        $years   = $result['years'];
+        $initial = $result['initial_amount'];
+        $monthly = $result['monthly_amount'];
+        $range   = range(0, $years);
+
+        $makeData = function (float $cagr) use ($initial, $monthly, $range) {
+            return array_map(function ($y) use ($initial, $monthly, $cagr) {
+                $months = $y * 12;
+                $r = ($cagr / 100) / 12;
+                if ($r == 0) {
+                    return round($initial + $monthly * $months);
+                }
+                $fvI = $initial * pow(1 + $r, $months);
+                $fvD = $monthly * ((pow(1 + $r, $months) - 1) / $r) * (1 + $r);
+                return round($fvI + $fvD);
+            }, $range);
+        };
+
+        return [
+            'labels'   => array_map(fn ($y) => "ปี {$y}", $range),
+            'invested' => array_map(fn ($y) => round($initial + $monthly * 12 * $y), $range),
+            'bull'     => $makeData($result['projections']['bull']['cagr']),
+            'base'     => $makeData($result['projections']['base']['cagr']),
+            'bear'     => $makeData($result['projections']['bear']['cagr']),
+            'currency' => $result['currency'],
+        ];
     }
 }

@@ -119,8 +119,11 @@
                         <div class="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
                             <a href="{{ $news->url }}" target="_blank" rel="noopener"
                                class="text-sm text-slate-700 hover:text-indigo-600 font-medium line-clamp-2 transition">
-                                {{ $news->title }}
+                                {{ $news->title_th ?? $news->title }}
                             </a>
+                            @if($news->summary_th)
+                                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ $news->summary_th }}</p>
+                            @endif
                             <div class="text-xs text-slate-400 mt-1">
                                 {{ $news->source }} · {{ \Carbon\Carbon::parse($news->published_at)->diffForHumans() }}
                             </div>

@@ -26,20 +26,31 @@ class StockManageController extends Controller
 
         // ตรวจว่ามีในระบบแล้วหรือยัง
         if (Stock::where('symbol', $symbol)->exists()) {
-            return back()->with('error', "หุ้น {$symbol} มีอยู่ในระบบแล้ว");
+            return $this->storeResponse($request, false, "หุ้น {$symbol} มีอยู่ในระบบแล้ว");
         }
 
         // ดึงข้อมูลจาก Yahoo Finance ผ่าน Artisan command
-        $exitCode = Artisan::call('app:fetch-stock-data', [
+        Artisan::call('app:fetch-stock-data', [
             'symbol'  => $symbol,
             '--years' => $validated['years'],
         ]);
 
         if (!Stock::where('symbol', $symbol)->exists()) {
-            return back()->with('error', "ไม่พบข้อมูลหุ้น {$symbol} บน Yahoo Finance — ตรวจสอบ symbol ให้ถูกต้อง (เช่น PTT.BK, AAPL)");
+            return $this->storeResponse($request, false, "ไม่พบข้อมูลหุ้น {$symbol} บน Yahoo Finance — ตรวจสอบ symbol ให้ถูกต้อง (เช่น PTT.BK, AAPL)");
         }
 
-        return back()->with('success', "เพิ่มหุ้น {$symbol} สำเร็จ พร้อมข้อมูลย้อนหลัง {$validated['years']} ปี");
+        return $this->storeResponse($request, true, "เพิ่มหุ้น {$symbol} สำเร็จ พร้อมข้อมูลย้อนหลัง {$validated['years']} ปี");
+    }
+
+    /**
+     * ตอบกลับแบบ JSON (AJAX) หรือ redirect (ปกติ)
+     */
+    private function storeResponse(Request $request, bool $ok, string $message)
+    {
+        if ($request->wantsJson()) {
+            return response()->json(['success' => $ok, 'message' => $message], $ok ? 200 : 422);
+        }
+        return back()->with($ok ? 'success' : 'error', $message);
     }
 
     public function refresh(Stock $stock, Request $request)

@@ -42,7 +42,19 @@
 
     {{-- Price Chart --}}
     <div class="lg:col-span-2 glass-card p-6">
-        <h2 class="font-semibold text-slate-800 mb-4">กราฟราคา (1 ปีล่าสุด)</h2>
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 class="font-semibold text-slate-800">กราฟราคา</h2>
+            @if(!$prices->isEmpty())
+            <div id="rangeFilter" class="flex gap-1 bg-slate-100 rounded-lg p-1">
+                @foreach(['1Y'=>'1ปี','2Y'=>'2ปี','3Y'=>'3ปี','4Y'=>'4ปี','5Y'=>'5ปี','10Y'=>'10ปี'] as $val => $label)
+                <button type="button" data-range="{{ $val }}"
+                        class="range-btn px-2.5 py-1 rounded-md text-xs font-medium text-slate-500 hover:text-slate-700 transition {{ $val === '1Y' ? 'bg-white text-indigo-600 shadow-sm' : '' }}">
+                    {{ $label }}
+                </button>
+                @endforeach
+            </div>
+            @endif
+        </div>
         @if($prices->isEmpty())
             <div class="text-slate-300 text-center py-12">ไม่มีข้อมูลราคา</div>
         @else
@@ -112,15 +124,25 @@
 
     {{-- News --}}
     <div class="lg:col-span-3 glass-card p-6">
-        <h2 class="font-semibold text-slate-800 mb-4">📰 ข่าวที่เกี่ยวข้อง</h2>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-slate-800">📰 {{ $newsIsFallback ? 'ข่าวตลาดโดยรวม' : 'ข่าวที่เกี่ยวข้อง' }}</h2>
+            @if($newsIsFallback)
+                <span class="text-xs text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full">ยังไม่มีข่าวเจาะจง {{ $stock->symbol }} — แสดงข่าวตลาดแทน</span>
+            @endif
+        </div>
         @if($news->isEmpty())
-            <p class="text-slate-300 text-sm">ไม่มีข่าวที่เกี่ยวข้องในระบบ</p>
+            <p class="text-slate-300 text-sm">ไม่มีข่าวในระบบ</p>
         @else
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 @foreach($news as $n)
                 <a href="{{ $n->url }}" target="_blank" rel="noopener"
                    class="flex flex-col justify-between p-4 bg-white/50 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/40 transition group">
-                    <p class="text-sm font-medium text-slate-700 group-hover:text-indigo-700 line-clamp-2 mb-2 transition">{{ $n->title }}</p>
+                    <div>
+                        <p class="text-sm font-medium text-slate-700 group-hover:text-indigo-700 line-clamp-2 mb-1 transition">{{ $n->title_th ?? $n->title }}</p>
+                        @if($n->summary_th)
+                            <p class="text-xs text-slate-500 line-clamp-2 mb-2">{{ $n->summary_th }}</p>
+                        @endif
+                    </div>
                     <div class="text-xs text-slate-400">{{ $n->source }} · {{ \Carbon\Carbon::parse($n->published_at)->diffForHumans() }}</div>
                 </a>
                 @endforeach
@@ -134,32 +156,78 @@
 @push('scripts')
 @if(!$prices->isEmpty())
 <script>
-const labels = @json($prices->pluck('date'));
-const closes = @json($prices->pluck('close'));
+document.addEventListener('DOMContentLoaded', function () {
+// ข้อมูลราคา 10 ปีเต็ม (เรียงเก่า→ใหม่) — กรองช่วงปีฝั่ง client
+const allDates  = @json($prices->pluck('date'));
+const allCloses = @json($prices->pluck('close'));
+const currency  = '{{ $stock->currency }}';
 
-new Chart(document.getElementById('priceChart'), {
+const priceChart = new Chart(document.getElementById('priceChart'), {
     type: 'line',
     data: {
-        labels,
+        labels: allDates,
         datasets: [{
             label: '{{ $stock->symbol }}',
-            data: closes,
+            data: allCloses,
             borderColor: '#6366f1',
             backgroundColor: 'rgba(99,102,241,0.06)',
             borderWidth: 1.5,
             pointRadius: 0,
+            pointHoverRadius: 4,
+            pointHoverBackgroundColor: '#6366f1',
             fill: true,
             tension: 0.2
         }]
     },
     options: {
         responsive: true,
-        plugins: { legend: { display: false } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    title: items => items[0].label,
+                    label: ctx => ` ${ctx.parsed.y.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${currency}`
+                }
+            }
+        },
         scales: {
             x: { ticks: { maxTicksLimit: 8, font: { size: 10 }, color: '#94a3b8' }, grid: { color: '#f1f5f9' } },
             y: { ticks: { font: { size: 10 }, color: '#94a3b8' }, grid: { color: '#f1f5f9' } }
         }
     }
+});
+
+// ฟิลเตอร์ช่วงปี — ตัดข้อมูลตามจำนวนปีย้อนหลังจากวันล่าสุด
+function applyRange(years) {
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - years);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    const dates = [], closes = [];
+    for (let i = 0; i < allDates.length; i++) {
+        if (allDates[i] >= cutoffStr) {
+            dates.push(allDates[i]);
+            closes.push(allCloses[i]);
+        }
+    }
+    priceChart.data.labels = dates;
+    priceChart.data.datasets[0].data = closes;
+    priceChart.update();
+}
+
+document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const years = parseInt(this.dataset.range);
+        applyRange(years);
+        // อัปเดต active state
+        document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('bg-white', 'text-indigo-600', 'shadow-sm'));
+        this.classList.add('bg-white', 'text-indigo-600', 'shadow-sm');
+    });
+});
+
+// เริ่มต้นแสดง 1 ปี
+applyRange(1);
 });
 </script>
 @endif
