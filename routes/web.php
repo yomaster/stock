@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CompareController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\SettingsController;
@@ -27,6 +28,7 @@ Route::prefix('manage')->name('manage.')->group(function () {
 // Stock analysis
 Route::prefix('stocks')->name('stocks.')->group(function () {
     Route::get('/', [StockController::class, 'index'])->name('index');
+    Route::get('/compare', [CompareController::class, 'index'])->name('compare');
     Route::get('/{stock}', [StockController::class, 'show'])->name('show');
 
     // DCA Backtest
