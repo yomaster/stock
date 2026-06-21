@@ -9,9 +9,10 @@ class PortfolioItem extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'shares'         => 'float',
-        'purchase_price' => 'float',
-        'purchase_date'  => 'date',
+        'shares'          => 'float',
+        'purchase_price'  => 'float',
+        'invested_amount' => 'float',
+        'purchase_date'   => 'date',
     ];
 
     public function portfolio()

@@ -40,7 +40,7 @@
     {{-- ฟอร์มเพิ่มหุ้น --}}
     <div class="glass-card p-6 self-start">
         <h2 class="font-semibold text-slate-800 mb-4">เพิ่มหุ้นเข้าพอร์ต</h2>
-        <form method="POST" action="{{ route('portfolio.items.store') }}" class="space-y-4">
+        <form method="POST" action="{{ route('portfolio.items.store') }}" class="space-y-4" id="addItemForm">
             @csrf
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">หุ้น</label>
@@ -52,23 +52,72 @@
                 </select>
                 @error('stock_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
+
+            {{-- เลือกวิธีเพิ่ม --}}
             <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนหุ้น</label>
-                <input type="number" name="shares" step="any" min="0.0001" required placeholder="เช่น 10"
-                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                @error('shares') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">วิธีเพิ่ม</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="mode" value="amount" checked class="peer sr-only" onchange="switchMode('amount')">
+                        <div class="border border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 rounded-xl py-2.5 text-center text-xs font-medium text-slate-600 peer-checked:text-indigo-700 transition">
+                            💵 ตามจำนวนเงิน
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="mode" value="shares" class="peer sr-only" onchange="switchMode('shares')">
+                        <div class="border border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 rounded-xl py-2.5 text-center text-xs font-medium text-slate-600 peer-checked:text-indigo-700 transition">
+                            📊 ตามจำนวนหุ้น
+                        </div>
+                    </label>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">ราคาที่ซื้อ (ต่อหุ้น, สกุลหุ้น)</label>
-                <input type="number" name="purchase_price" step="any" min="0" required placeholder="เช่น 35.50"
-                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                <p class="text-xs text-slate-400 mt-1">หุ้นไทยกรอกเป็นบาท · หุ้น US กรอกเป็นดอลลาร์</p>
-                @error('purchase_price') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+
+            {{-- โหมดจำนวนเงิน --}}
+            <div id="mode-amount" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนเงินที่ลงทุน</label>
+                    <input type="number" name="invested_amount" step="any" min="1" placeholder="เช่น 5000"
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    @error('invested_amount') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">สกุลเงินที่จ่าย</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        @foreach(['THB' => '🇹🇭 บาท', 'USD' => '🇺🇸 ดอลลาร์'] as $code => $label)
+                        <label class="cursor-pointer">
+                            <input type="radio" name="invested_currency" value="{{ $code }}" {{ $code === 'THB' ? 'checked' : '' }} class="peer sr-only">
+                            <div class="border border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 rounded-xl py-2.5 text-center text-sm font-medium text-slate-600 peer-checked:text-indigo-700 transition">
+                                {{ $label }}
+                            </div>
+                        </label>
+                        @endforeach
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">Dime ซื้อหุ้น US ด้วยเงินบาท → เลือกบาท</p>
+                </div>
             </div>
+
+            {{-- โหมดจำนวนหุ้น (รวบรัด) --}}
+            <div id="mode-shares" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนหุ้นที่ถืออยู่</label>
+                    <input type="number" name="shares" step="any" min="0.0001" placeholder="เช่น 0.5 (เศษหุ้นได้)" disabled
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    @error('shares') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">ต้นทุนเฉลี่ย/หุ้น <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
+                    <input type="number" name="avg_cost" step="any" min="0" placeholder="เว้นว่าง = ใช้ราคาปัจจุบันเป็นฐาน" disabled
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    <p class="text-xs text-slate-400 mt-1">สกุลของหุ้น (ไทย=บาท, US=ดอลลาร์) · ถ้าไม่รู้ปล่อยว่างได้</p>
+                </div>
+            </div>
+
             <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่ซื้อ (ไม่บังคับ)</label>
-                <input type="date" name="purchase_date"
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่ <span class="text-slate-400 font-normal">(ไม่บังคับ — default วันนี้)</span></label>
+                <input type="date" name="purchase_date" max="{{ now()->toDateString() }}"
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                <p class="text-xs text-slate-400 mt-1">ระบบดึงราคา + อัตราแลกเปลี่ยนวันนั้นมาคำนวณให้</p>
+                @error('purchase_date') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
             <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm active:scale-[0.98]">
                 + เพิ่มเข้าพอร์ต
@@ -114,10 +163,10 @@
                         <thead>
                             <tr class="text-left text-xs text-slate-500 uppercase border-b border-slate-200">
                                 <th class="pb-2 pr-3">หุ้น</th>
-                                <th class="pb-2 pr-3 text-right">จำนวน</th>
-                                <th class="pb-2 pr-3 text-right">ทุน/หุ้น</th>
-                                <th class="pb-2 pr-3 text-right">ราคาล่าสุด</th>
-                                <th class="pb-2 pr-3 text-right">มูลค่า</th>
+                                <th class="pb-2 pr-3 text-right">เงินลงทุน</th>
+                                <th class="pb-2 pr-3 text-right">หุ้นที่ได้</th>
+                                <th class="pb-2 pr-3 text-right">ราคาซื้อ→ล่าสุด</th>
+                                <th class="pb-2 pr-3 text-right">มูลค่า (บาท)</th>
                                 <th class="pb-2 pr-3 text-right">กำไร/ขาดทุน</th>
                                 <th class="pb-2"></th>
                             </tr>
@@ -127,14 +176,21 @@
                             <tr>
                                 <td class="py-2.5 pr-3">
                                     <span class="font-semibold text-slate-800">{{ $h['symbol'] }}</span>
-                                    <span class="text-xs text-slate-400 block">{{ $h['currency'] }}</span>
+                                    <span class="text-xs text-slate-400 block">{{ $h['purchase_date'] ?? '—' }}</span>
+                                </td>
+                                <td class="py-2.5 pr-3 text-right text-slate-600">
+                                    {{ $h['invested_amount'] ? number_format($h['invested_amount'], 0) . ' ' . $h['invested_currency'] : '—' }}
                                 </td>
                                 <td class="py-2.5 pr-3 text-right text-slate-600">{{ number_format($h['shares'], 4) }}</td>
-                                <td class="py-2.5 pr-3 text-right text-slate-600">{{ number_format($h['purchase_price'], 2) }}</td>
-                                <td class="py-2.5 pr-3 text-right text-slate-600">{{ number_format($h['current_price'], 2) }}</td>
-                                <td class="py-2.5 pr-3 text-right font-medium text-slate-800">{{ number_format($h['value'], 2) }}</td>
-                                <td class="py-2.5 pr-3 text-right font-semibold {{ $h['pl_value'] >= 0 ? 'text-emerald-600' : 'text-red-500' }}">
-                                    {{ $h['pl_value'] >= 0 ? '+' : '' }}{{ number_format($h['pl_percent'], 1) }}%
+                                <td class="py-2.5 pr-3 text-right text-slate-500 text-xs">
+                                    {{ number_format($h['purchase_price'], 2) }} → {{ number_format($h['current_price'], 2) }} {{ $h['currency'] }}
+                                </td>
+                                <td class="py-2.5 pr-3 text-right font-medium text-slate-800">{{ number_format($h['value_thb'], 0) }}</td>
+                                <td class="py-2.5 pr-3 text-right font-semibold {{ $h['pl_value_thb'] >= 0 ? 'text-emerald-600' : 'text-red-500' }}">
+                                    {{ $h['pl_value_thb'] >= 0 ? '+' : '' }}{{ number_format($h['pl_percent'], 1) }}%
+                                    <span class="block text-xs font-normal {{ $h['pl_value_thb'] >= 0 ? 'text-emerald-500' : 'text-red-400' }}">
+                                        {{ $h['pl_value_thb'] >= 0 ? '+' : '' }}{{ number_format($h['pl_value_thb'], 0) }} บาท
+                                    </span>
                                 </td>
                                 <td class="py-2.5 text-right">
                                     <form method="POST" action="{{ route('portfolio.items.destroy', $h['id']) }}" class="inline confirm-delete"
@@ -174,6 +230,33 @@
 </div>
 
 @endsection
+
+@push('scripts')
+{{-- สลับโหมดเพิ่มหุ้น (เงิน / จำนวนหุ้น) — แสดงตลอดแม้พอร์ตว่าง --}}
+<script>
+function switchMode(mode) {
+    const amt = document.getElementById('mode-amount');
+    const shr = document.getElementById('mode-shares');
+    const amtInputs = amt.querySelectorAll('input');
+    const shrInputs = shr.querySelectorAll('input');
+
+    if (mode === 'shares') {
+        shr.classList.remove('hidden'); amt.classList.add('hidden');
+        shrInputs.forEach(i => i.disabled = false);
+        amtInputs.forEach(i => i.disabled = true);
+        document.querySelector('[name=shares]').required = true;
+        document.querySelector('[name=invested_amount]').required = false;
+    } else {
+        amt.classList.remove('hidden'); shr.classList.add('hidden');
+        amtInputs.forEach(i => i.disabled = false);
+        shrInputs.forEach(i => i.disabled = true);
+        document.querySelector('[name=invested_amount]').required = true;
+        document.querySelector('[name=shares]').required = false;
+    }
+}
+document.addEventListener('DOMContentLoaded', () => switchMode('amount'));
+</script>
+@endpush
 
 @push('scripts')
 @if(!empty($holdings))
