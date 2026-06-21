@@ -13,8 +13,10 @@ class GeminiService
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.api_key');
-        $this->model  = config('services.gemini.model', 'gemini-2.0-flash');
+        // อ่านจาก SettingsService (DB) ก่อน → fallback ไป config()/.env อัตโนมัติ
+        $settings = app(SettingsService::class);
+        $this->apiKey = $settings->get('gemini.api_key');
+        $this->model  = $settings->get('gemini.model', 'gemini-2.5-flash');
     }
 
     /**

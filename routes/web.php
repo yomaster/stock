@@ -1,11 +1,16 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockManageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+// ตั้งค่าระบบ (API keys, ตารางเวลา, ฯลฯ)
+Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
 // Stock management (เพิ่ม/ลบ/รีเฟรชหุ้น)
 Route::prefix('manage')->name('manage.')->group(function () {
