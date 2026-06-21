@@ -23,8 +23,8 @@ class SettingsService
         ],
         'gemini.model' => [
             'group' => 'gemini', 'label' => 'Gemini Model', 'secret' => false,
-            'default' => 'gemini-2.5-flash',
-            'help' => 'แนะนำ gemini-2.5-flash (ใช้ฟรีได้จริง — 2.0-flash quota=0)',
+            'default' => 'gemini-2.5-flash-lite',
+            'help' => 'แนะนำ gemini-2.5-flash-lite (โควต้าฟรีรายวันสูงกว่า flash) · 2.0-flash quota=0 ใช้ไม่ได้',
         ],
 
         // ── LINE Messaging API ──

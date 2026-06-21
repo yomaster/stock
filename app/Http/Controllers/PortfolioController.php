@@ -139,7 +139,10 @@ class PortfolioController extends Controller
         $result = $gemini->generateText($prompt, ['maxOutputTokens' => 1024]);
 
         if (!$result) {
-            return response()->json(['success' => false, 'message' => 'AI วิเคราะห์ไม่สำเร็จ ลองใหม่อีกครั้ง']);
+            $msg = $gemini->lastStatus === 429
+                ? 'โควต้า AI ฟรีหมดสำหรับวันนี้แล้ว — ลองใหม่พรุ่งนี้ หรือเปลี่ยน Model ในหน้าตั้งค่า (เช่น gemini-2.5-flash-lite ที่โควต้าสูงกว่า)'
+                : 'AI วิเคราะห์ไม่สำเร็จ ลองใหม่อีกครั้ง';
+            return response()->json(['success' => false, 'message' => $msg]);
         }
 
         return response()->json(['success' => true, 'analysis' => trim($result)]);

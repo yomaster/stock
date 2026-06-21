@@ -11,6 +11,9 @@ class GeminiService
     protected $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/';
     protected $model;
 
+    /** HTTP status ของ call ล่าสุด (429 = โควต้าหมด) ให้ caller เช็คได้ */
+    public ?int $lastStatus = null;
+
     public function __construct()
     {
         // อ่านจาก SettingsService (DB) ก่อน → fallback ไป config()/.env อัตโนมัติ
@@ -34,6 +37,7 @@ class GeminiService
         }
 
         $url = $this->baseUrl . $this->model . ':generateContent?key=' . $this->apiKey;
+        $this->lastStatus = null;
 
         try {
             $response = Http::withHeaders([
@@ -51,6 +55,8 @@ class GeminiService
                     'maxOutputTokens' => 2048,
                 ], $config)
             ]);
+
+            $this->lastStatus = $response->status();
 
             if ($response->failed()) {
                 Log::error('Gemini API Request failed: ' . $response->body());
