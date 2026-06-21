@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // LINE webhook ไม่มี CSRF token (มาจาก LINE platform) → ยกเว้น แล้วตรวจ signature เอง
+        $middleware->validateCsrfTokens(except: [
+            'webhook/line',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class LineService
+{
+    private string $replyUrl = 'https://api.line.me/v2/bot/message/reply';
+    private string $pushUrl  = 'https://api.line.me/v2/bot/message/push';
+
+    public function __construct(private SettingsService $settings) {}
+
+    private function token(): ?string
+    {
+        return $this->settings->get('line.channel_access_token');
+    }
+
+    private function secret(): ?string
+    {
+        return $this->settings->get('line.channel_secret');
+    }
+
+    /**
+     * ตรวจลายเซ็น webhook (X-Line-Signature) ด้วย Channel Secret
+     * ป้องกัน request ปลอมที่ไม่ได้มาจาก LINE
+     */
+    public function verifySignature(string $rawBody, ?string $signature): bool
+    {
+        $secret = $this->secret();
+        if (!$secret || !$signature) {
+            return false;
+        }
+
+        $hash = base64_encode(hash_hmac('sha256', $rawBody, $secret, true));
+        return hash_equals($hash, $signature);
+    }
+
+    /**
+     * ตอบกลับข้อความด้วย replyToken (ใช้ได้ครั้งเดียว ภายในไม่กี่วินาที)
+     */
+    public function reply(string $replyToken, string|array $messages): bool
+    {
+        return $this->send($this->replyUrl, [
+            'replyToken' => $replyToken,
+            'messages'   => $this->normalizeMessages($messages),
+        ]);
+    }
+
+    /**
+     * ส่งข้อความเชิงรุก (push) ไปยัง user/group — ใช้กับรายงานสรุป
+     */
+    public function push(string $to, string|array $messages): bool
+    {
+        return $this->send($this->pushUrl, [
+            'to'       => $to,
+            'messages' => $this->normalizeMessages($messages),
+        ]);
+    }
+
+    /**
+     * ส่งหา recipient หลักที่ตั้งไว้ใน settings (สำหรับรายงานสรุป)
+     */
+    public function pushToDefault(string|array $messages): bool
+    {
+        $to = $this->settings->get('line.recipient_id');
+        if (!$to) {
+            Log::warning('LINE: ยังไม่ได้ตั้ง recipient_id — ข้ามการส่ง');
+            return false;
+        }
+        return $this->push($to, $messages);
+    }
+
+    /**
+     * แปลง string เป็น message object และจำกัดไม่เกิน 5 ข้อความ (ลิมิตของ LINE)
+     */
+    private function normalizeMessages(string|array $messages): array
+    {
+        if (is_string($messages)) {
+            $messages = [['type' => 'text', 'text' => $messages]];
+        } elseif (isset($messages['type'])) {
+            // ส่ง message object เดี่ยวมา
+            $messages = [$messages];
+        }
+
+        return array_slice($messages, 0, 5);
+    }
+
+    private function send(string $url, array $payload): bool
+    {
+        $token = $this->token();
+        if (!$token) {
+            Log::warning('LINE: ยังไม่ได้ตั้ง channel_access_token');
+            return false;
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->asJson()
+                ->post($url, $payload);
+
+            if ($response->failed()) {
+                Log::error('LINE API failed: ' . $response->status() . ' ' . $response->body());
+                return false;
+            }
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('LINE Service error: ' . $e->getMessage());
+            return false;
+        }
+    }
+}
