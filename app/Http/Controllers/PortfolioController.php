@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class PortfolioController extends Controller
 {
@@ -130,11 +131,14 @@ class PortfolioController extends Controller
 
         $prompt = "คุณคือที่ปรึกษาการลงทุนมืออาชีพ ช่วยตรวจสุขภาพพอร์ตการลงทุนต่อไปนี้ "
             . "(มูลค่ารวม " . number_format($data['total_value_thb'], 0) . " บาท):\n{$block}\n\n"
-            . "วิเคราะห์เป็นภาษาไทยให้นักลงทุนมือใหม่เข้าใจง่าย ครอบคลุม:\n"
-            . "1. ภาพรวมความเสี่ยง (กระจุกตัวในหุ้นตัวเดียว/กลุ่มธุรกิจเดียวเกินไปไหม)\n"
-            . "2. การกระจายความเสี่ยง (กลุ่มอุตสาหกรรม/ประเทศ)\n"
-            . "3. คำแนะนำปรับสมดุล (Rebalance) ที่ทำได้จริง\n\n"
-            . "ตอบกระชับเป็นข้อๆ ใช้ bullet (-) ไม่ต้องมี markdown หนา";
+            . "วิเคราะห์เป็นภาษาไทยให้นักลงทุนมือใหม่เข้าใจง่าย\n\n"
+            . "ตอบเป็น Markdown โดยแบ่งเป็น 3 หัวข้อนี้ (ใช้ ## นำหน้าหัวข้อ):\n"
+            . "## 📊 ภาพรวมความเสี่ยง\n## 🌐 การกระจายความเสี่ยง\n## 🔧 คำแนะนำปรับสมดุล\n\n"
+            . "กติกาการเขียน:\n"
+            . "- แต่ละหัวข้อใช้ bullet (-) 2-4 ข้อ สั้นกระชับ ข้อละ 1-2 บรรทัด\n"
+            . "- เว้นบรรทัดว่างระหว่างหัวข้อ\n"
+            . "- เน้นคำสำคัญด้วย **ตัวหนา** ได้\n"
+            . "- ห้ามเขียนเป็นพารากราฟยาวๆ ติดกัน";
 
         $result = $gemini->generateText($prompt, ['maxOutputTokens' => 1024]);
 
@@ -145,7 +149,11 @@ class PortfolioController extends Controller
             return response()->json(['success' => false, 'message' => $msg]);
         }
 
-        return response()->json(['success' => true, 'analysis' => trim($result)]);
+        // แปลง Markdown → HTML (commonmark escape raw html ให้อยู่แล้ว ปลอดภัย)
+        return response()->json([
+            'success'       => true,
+            'analysis_html' => Str::markdown(trim($result)),
+        ]);
     }
 
     // ───────────────────────── helpers ─────────────────────────

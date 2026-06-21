@@ -223,7 +223,7 @@
                     </div>
                     <p class="text-slate-500 text-sm">AI กำลังตรวจสุขภาพพอร์ต...</p>
                 </div>
-                <div id="healthResult" class="text-sm text-slate-600 leading-relaxed whitespace-pre-line"></div>
+                <div id="healthResult" class="md-content text-sm text-slate-600"></div>
             </div>
         @endif
     </div>
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             const data = await res.json();
             if (data.success) {
-                result.textContent = data.analysis;
+                result.innerHTML = data.analysis_html;
             } else {
                 window.toast('error', data.message || 'วิเคราะห์ไม่สำเร็จ');
             }
