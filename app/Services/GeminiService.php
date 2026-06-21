@@ -9,11 +9,12 @@ class GeminiService
 {
     protected $apiKey;
     protected $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/';
-    protected $model = 'gemini-1.5-flash'; // 1.5-flash รวดเร็ว ประหยัดโทเค็น และใช้ฟรีได้อย่างมีประสิทธิภาพ
+    protected $model;
 
     public function __construct()
     {
-        $this->apiKey = env('GEMINI_API_KEY');
+        $this->apiKey = config('services.gemini.api_key');
+        $this->model  = config('services.gemini.model', 'gemini-2.0-flash');
     }
 
     /**

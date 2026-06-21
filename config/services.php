@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model'   => env('GEMINI_MODEL', 'gemini-2.0-flash'),
+    ],
+
+    'line' => [
+        'channel_access_token' => env('LINE_CHANNEL_ACCESS_TOKEN'),
+        'channel_secret'       => env('LINE_CHANNEL_SECRET'),
+    ],
+
 ];
