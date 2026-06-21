@@ -60,6 +60,10 @@ class SettingsService
             'group' => 'general', 'label' => 'เกณฑ์แจ้งเตือนราคา (%)', 'secret' => false,
             'default' => '5', 'help' => 'แจ้งเตือนเมื่อราคาขยับเกิน % นี้ระหว่างวัน',
         ],
+        'alert.volume_multiplier' => [
+            'group' => 'general', 'label' => 'เกณฑ์แจ้งเตือน Volume (เท่า)', 'secret' => false,
+            'default' => '2.5', 'help' => 'แจ้งเตือนเมื่อ volume วันนี้ > X เท่าของค่าเฉลี่ย 20 วัน',
+        ],
     ];
 
     /**

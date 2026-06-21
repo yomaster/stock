@@ -26,6 +26,9 @@ Schedule::command('app:send-summary --market=US')
     ->weekdays()->timezone('America/New_York')
     ->at($settings->get('schedule.us_summary_time_ny', '09:00'));
 
+// ── แจ้งเตือนราคา/วอลุ่มผิดปกติระหว่างวัน ทุก 30 นาที (วันทำการ) ──
+Schedule::command('app:check-alerts')->weekdays()->everyThirtyMinutes();
+
 // ── ระบาย queue (เช่น /ask) ทุกนาที — ไม่ต้องมี worker ค้างตลอด ──
 Schedule::command('queue:work --stop-when-empty --tries=1 --max-time=55')
     ->everyMinute()->withoutOverlapping();
