@@ -29,7 +29,7 @@ class StockManageController extends Controller
             return $this->storeResponse($request, false, "หุ้น {$symbol} มีอยู่ในระบบแล้ว");
         }
 
-        // ดึงข้อมูลจาก Yahoo Finance ผ่าน Artisan command
+        // ดึงข้อมูลราคาจาก Yahoo Finance ผ่าน Artisan command
         Artisan::call('app:fetch-stock-data', [
             'symbol'  => $symbol,
             '--years' => $validated['years'],
@@ -39,7 +39,15 @@ class StockManageController extends Controller
             return $this->storeResponse($request, false, "ไม่พบข้อมูลหุ้น {$symbol} บน Yahoo Finance — ตรวจสอบ symbol ให้ถูกต้อง (เช่น PTT.BK, AAPL)");
         }
 
-        return $this->storeResponse($request, true, "เพิ่มหุ้น {$symbol} สำเร็จ พร้อมข้อมูลย้อนหลัง {$validated['years']} ปี");
+        // ดึงข่าวรายหุ้น + แปลไทย (ไม่ให้ error ขัดการเพิ่มหุ้นที่สำเร็จแล้ว)
+        try {
+            Artisan::call('app:fetch-stock-news', ['symbol' => $symbol, '--count' => 10]);
+            Artisan::call('app:summarize-news', ['--limit' => 15, '--batch' => 15]);
+        } catch (\Throwable $e) {
+            // เงียบไว้ — ข่าวดึงไม่ได้ไม่ใช่เรื่องคอขาดบาดตาย หุ้นเพิ่มสำเร็จแล้ว
+        }
+
+        return $this->storeResponse($request, true, "เพิ่มหุ้น {$symbol} สำเร็จ พร้อมข้อมูลย้อนหลัง {$validated['years']} ปี และดึงข่าวล่าสุดแล้ว");
     }
 
     /**
