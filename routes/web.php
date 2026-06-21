@@ -3,6 +3,7 @@
 use App\Http\Controllers\CompareController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LineWebhookController;
+use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockManageController;
@@ -16,6 +17,14 @@ Route::post('/webhook/line', [LineWebhookController::class, 'handle'])->name('we
 // ตั้งค่าระบบ (API keys, ตารางเวลา, ฯลฯ)
 Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
 Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
+
+// พอร์ตการลงทุน + AI health check
+Route::prefix('portfolio')->name('portfolio.')->group(function () {
+    Route::get('/', [PortfolioController::class, 'index'])->name('index');
+    Route::post('/items', [PortfolioController::class, 'storeItem'])->name('items.store');
+    Route::delete('/items/{item}', [PortfolioController::class, 'destroyItem'])->name('items.destroy');
+    Route::post('/health-check', [PortfolioController::class, 'healthCheck'])->name('health');
+});
 
 // Stock management (เพิ่ม/ลบ/รีเฟรชหุ้น)
 Route::prefix('manage')->name('manage.')->group(function () {

@@ -1,0 +1,244 @@
+@extends('layouts.app')
+
+@section('title', 'พอร์ตการลงทุน — Stock AI')
+
+@section('content')
+
+<div class="mb-8">
+    <h1 class="text-2xl font-bold text-slate-900">💼 พอร์ตการลงทุน</h1>
+    <p class="text-slate-500 text-sm mt-1">กรอกหุ้นที่ถือจริง → ดูมูลค่า กำไร/ขาดทุน และให้ AI ตรวจสุขภาพพอร์ต (แปลง USD→THB ที่ {{ number_format($rate, 2) }} บาท)</p>
+</div>
+
+{{-- สรุปรวม --}}
+@if(!empty($holdings))
+@php $isProfit = $total_pl_thb >= 0; @endphp
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="glass-card p-4 text-center">
+        <div class="text-xs text-slate-500 mb-1">มูลค่าพอร์ต</div>
+        <div class="text-xl font-bold text-slate-800">{{ number_format($total_value_thb, 0) }}</div>
+        <div class="text-xs text-slate-400">บาท</div>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <div class="text-xs text-slate-500 mb-1">เงินลงทุน (ทุน)</div>
+        <div class="text-xl font-bold text-slate-800">{{ number_format($total_cost_thb, 0) }}</div>
+        <div class="text-xs text-slate-400">บาท</div>
+    </div>
+    <div class="glass-card p-4 text-center {{ $isProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
+        <div class="text-xs {{ $isProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">กำไร/ขาดทุน</div>
+        <div class="text-xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_pl_thb, 0) }}</div>
+        <div class="text-xs {{ $isProfit ? 'text-emerald-500' : 'text-red-500' }}">บาท</div>
+    </div>
+    <div class="glass-card p-4 text-center {{ $isProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
+        <div class="text-xs {{ $isProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">ผลตอบแทน</div>
+        <div class="text-2xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_pl_percent, 1) }}%</div>
+    </div>
+</div>
+@endif
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    {{-- ฟอร์มเพิ่มหุ้น --}}
+    <div class="glass-card p-6 self-start">
+        <h2 class="font-semibold text-slate-800 mb-4">เพิ่มหุ้นเข้าพอร์ต</h2>
+        <form method="POST" action="{{ route('portfolio.items.store') }}" class="space-y-4">
+            @csrf
+            <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">หุ้น</label>
+                <select name="stock_id" required class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    <option value="">— เลือกหุ้น —</option>
+                    @foreach($stocks as $s)
+                        <option value="{{ $s->id }}">{{ $s->symbol }} — {{ $s->name }}</option>
+                    @endforeach
+                </select>
+                @error('stock_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนหุ้น</label>
+                <input type="number" name="shares" step="any" min="0.0001" required placeholder="เช่น 10"
+                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                @error('shares') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">ราคาที่ซื้อ (ต่อหุ้น, สกุลหุ้น)</label>
+                <input type="number" name="purchase_price" step="any" min="0" required placeholder="เช่น 35.50"
+                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                <p class="text-xs text-slate-400 mt-1">หุ้นไทยกรอกเป็นบาท · หุ้น US กรอกเป็นดอลลาร์</p>
+                @error('purchase_price') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่ซื้อ (ไม่บังคับ)</label>
+                <input type="date" name="purchase_date"
+                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm active:scale-[0.98]">
+                + เพิ่มเข้าพอร์ต
+            </button>
+        </form>
+    </div>
+
+    {{-- รายการถือครอง + chart + AI --}}
+    <div class="lg:col-span-2 space-y-6">
+        @if(empty($holdings))
+            <div class="glass-card flex flex-col items-center justify-center py-20 text-center">
+                <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4 text-3xl">💼</div>
+                <p class="text-slate-500 font-medium">พอร์ตยังว่าง</p>
+                <p class="text-slate-400 text-sm mt-1">เพิ่มหุ้นที่ถือจริงจากฟอร์มด้านซ้าย</p>
+            </div>
+        @else
+            {{-- Allocation donut + table --}}
+            <div class="glass-card p-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+                    <div>
+                        <h3 class="font-semibold text-slate-800 mb-3">สัดส่วนพอร์ต</h3>
+                        <canvas id="allocChart" height="200"></canvas>
+                    </div>
+                    <div class="space-y-2">
+                        @foreach($holdings as $i => $h)
+                        <div class="flex items-center justify-between text-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full" style="background: var(--c{{ $i }})"></span>
+                                <span class="font-medium text-slate-700">{{ $h['symbol'] }}</span>
+                            </div>
+                            <span class="text-slate-500">{{ number_format($h['allocation'], 1) }}%</span>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            {{-- ตารางถือครอง --}}
+            <div class="glass-card p-6">
+                <h3 class="font-semibold text-slate-800 mb-4">รายการถือครอง</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs text-slate-500 uppercase border-b border-slate-200">
+                                <th class="pb-2 pr-3">หุ้น</th>
+                                <th class="pb-2 pr-3 text-right">จำนวน</th>
+                                <th class="pb-2 pr-3 text-right">ทุน/หุ้น</th>
+                                <th class="pb-2 pr-3 text-right">ราคาล่าสุด</th>
+                                <th class="pb-2 pr-3 text-right">มูลค่า</th>
+                                <th class="pb-2 pr-3 text-right">กำไร/ขาดทุน</th>
+                                <th class="pb-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @foreach($holdings as $h)
+                            <tr>
+                                <td class="py-2.5 pr-3">
+                                    <span class="font-semibold text-slate-800">{{ $h['symbol'] }}</span>
+                                    <span class="text-xs text-slate-400 block">{{ $h['currency'] }}</span>
+                                </td>
+                                <td class="py-2.5 pr-3 text-right text-slate-600">{{ number_format($h['shares'], 4) }}</td>
+                                <td class="py-2.5 pr-3 text-right text-slate-600">{{ number_format($h['purchase_price'], 2) }}</td>
+                                <td class="py-2.5 pr-3 text-right text-slate-600">{{ number_format($h['current_price'], 2) }}</td>
+                                <td class="py-2.5 pr-3 text-right font-medium text-slate-800">{{ number_format($h['value'], 2) }}</td>
+                                <td class="py-2.5 pr-3 text-right font-semibold {{ $h['pl_value'] >= 0 ? 'text-emerald-600' : 'text-red-500' }}">
+                                    {{ $h['pl_value'] >= 0 ? '+' : '' }}{{ number_format($h['pl_percent'], 1) }}%
+                                </td>
+                                <td class="py-2.5 text-right">
+                                    <form method="POST" action="{{ route('portfolio.items.destroy', $h['id']) }}" class="inline confirm-delete"
+                                          data-title="ลบ {{ $h['symbol'] }}?" data-message="ลบรายการนี้ออกจากพอร์ต">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {{-- AI Health Check --}}
+            <div class="glass-card p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-semibold text-slate-800">🩺 ตรวจสุขภาพพอร์ตด้วย AI</h3>
+                    <button id="healthBtn" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition shadow-sm active:scale-[0.98] disabled:opacity-60">
+                        วิเคราะห์พอร์ต
+                    </button>
+                </div>
+                <div id="healthLoading" class="hidden flex-col items-center py-10 text-center">
+                    <div class="relative w-12 h-12 mb-3">
+                        <div class="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
+                        <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+                    </div>
+                    <p class="text-slate-500 text-sm">AI กำลังตรวจสุขภาพพอร์ต...</p>
+                </div>
+                <div id="healthResult" class="text-sm text-slate-600 leading-relaxed whitespace-pre-line"></div>
+            </div>
+        @endif
+    </div>
+</div>
+
+@endsection
+
+@push('scripts')
+@if(!empty($holdings))
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const palette = ['#6366f1','#10b981','#f43f5e','#f59e0b','#06b6d4','#a855f7','#ec4899','#84cc16'];
+    // ตั้ง CSS var ให้ legend สีตรงกับ chart
+    palette.forEach((c, i) => document.documentElement.style.setProperty('--c' + i, c));
+
+    const labels = @json(array_map(fn($h) => $h['symbol'], $holdings));
+    const values = @json(array_map(fn($h) => round($h['value_thb'], 2), $holdings));
+
+    new Chart(document.getElementById('allocChart'), {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{ data: values, backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+            responsive: true,
+            cutout: '62%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString('th-TH')} บาท`
+                    }
+                }
+            }
+        }
+    });
+
+    // AI Health Check
+    const btn = document.getElementById('healthBtn');
+    const loading = document.getElementById('healthLoading');
+    const result = document.getElementById('healthResult');
+
+    btn.addEventListener('click', async function () {
+        btn.disabled = true;
+        result.textContent = '';
+        loading.classList.remove('hidden');
+        loading.classList.add('flex');
+        try {
+            const res = await fetch('{{ route('portfolio.health') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await res.json();
+            if (data.success) {
+                result.textContent = data.analysis;
+            } else {
+                window.toast('error', data.message || 'วิเคราะห์ไม่สำเร็จ');
+            }
+        } catch (e) {
+            window.toast('error', 'เกิดข้อผิดพลาด: ' + e.message);
+        } finally {
+            loading.classList.add('hidden');
+            loading.classList.remove('flex');
+            btn.disabled = false;
+        }
+    });
+});
+</script>
+@endif
+@endpush
