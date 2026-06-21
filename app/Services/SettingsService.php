@@ -11,33 +11,29 @@ class SettingsService
     private const CACHE_KEY = 'app_settings';
 
     /**
-     * Registry ของ setting ทั้งหมด — เป็น source เดียวที่ใช้ทั้ง seed, อ่านค่า และสร้างหน้า UI
+     * Registry ของ setting ทั้งหมด — เป็น source เดียวที่ใช้ทั้งอ่านค่า และสร้างหน้า UI
      * - secret: true → เข้ารหัสก่อนเก็บ DB + ปิดบังในหน้าเว็บ
-     * - config: คีย์ใน config() ที่ใช้เป็น fallback เมื่อ DB ยังไม่มีค่า (สืบไป .env)
-     * - default: ค่า fallback สุดท้ายเมื่อไม่มีทั้ง DB และ config
+     * - default: ค่าตั้งต้น (hardcode) เมื่อ DB ยังไม่มีค่า — ไม่อ่านจาก .env
      */
     public const REGISTRY = [
         // ── Gemini AI ──
         'gemini.api_key' => [
             'group' => 'gemini', 'label' => 'Gemini API Key', 'secret' => true,
-            'config' => 'services.gemini.api_key',
             'help' => 'สมัครฟรีที่ aistudio.google.com/apikey',
         ],
         'gemini.model' => [
             'group' => 'gemini', 'label' => 'Gemini Model', 'secret' => false,
-            'config' => 'services.gemini.model', 'default' => 'gemini-2.5-flash',
+            'default' => 'gemini-2.5-flash',
             'help' => 'แนะนำ gemini-2.5-flash (ใช้ฟรีได้จริง — 2.0-flash quota=0)',
         ],
 
         // ── LINE Messaging API ──
         'line.channel_access_token' => [
             'group' => 'line', 'label' => 'Channel Access Token', 'secret' => true,
-            'config' => 'services.line.channel_access_token',
             'help' => 'จาก LINE Developers Console → Messaging API → Channel access token',
         ],
         'line.channel_secret' => [
             'group' => 'line', 'label' => 'Channel Secret', 'secret' => true,
-            'config' => 'services.line.channel_secret',
             'help' => 'ใช้ตรวจลายเซ็น webhook (X-Line-Signature)',
         ],
         'line.recipient_id' => [
@@ -67,7 +63,9 @@ class SettingsService
     ];
 
     /**
-     * อ่านค่า setting — ลำดับ: DB → config()/.env → default → fallback
+     * อ่านค่า setting — ลำดับ: DB → default (ใน registry) → fallback
+     * ⚠️ ไม่อ่านจาก .env/config โดยตั้งใจ — ค่าทั้งหมดต้องอยู่ใน DB เท่านั้น
+     *    (จัดการผ่านหน้า /settings) ค่า default เป็นค่าตั้งต้น hardcode ไม่ใช่ .env
      */
     public function get(string $key, $fallback = null)
     {
@@ -77,16 +75,8 @@ class SettingsService
         }
 
         $meta = self::REGISTRY[$key] ?? null;
-        if ($meta) {
-            if (!empty($meta['config'])) {
-                $cfg = config($meta['config']);
-                if ($cfg !== null && $cfg !== '') {
-                    return $cfg;
-                }
-            }
-            if (array_key_exists('default', $meta)) {
-                return $meta['default'];
-            }
+        if ($meta && array_key_exists('default', $meta)) {
+            return $meta['default'];
         }
 
         return $fallback;

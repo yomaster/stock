@@ -37,9 +37,6 @@
                 </select>
             </div>
 
-            {{-- กล่องแสดงสถานะ AJAX --}}
-            <div id="addStatus" class="hidden rounded-xl p-3 text-sm"></div>
-
             <button type="submit" id="addBtn"
                 class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm
                        transition-all shadow-sm hover:shadow-indigo-200 hover:shadow-lg active:scale-[0.98]
@@ -105,8 +102,9 @@
                         </a>
 
                         {{-- Delete --}}
-                        <form method="POST" action="{{ route('manage.destroy', $stock) }}" class="inline"
-                              onsubmit="return confirm('ลบ {{ $stock->symbol }} ออกจากระบบ? ข้อมูลราคาทั้งหมดจะถูกลบด้วย')">
+                        <form method="POST" action="{{ route('manage.destroy', $stock) }}" class="inline confirm-delete"
+                              data-title="ลบ {{ $stock->symbol }}?"
+                              data-message="ข้อมูลราคาและผลวิเคราะห์ทั้งหมดของ {{ $stock->symbol }} จะถูกลบด้วย">
                             @csrf
                             @method('DELETE')
                             <button type="submit" title="ลบ"
@@ -139,20 +137,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const form    = document.getElementById('addStockForm');
     const btn     = document.getElementById('addBtn');
     const btnText = document.getElementById('addBtnText');
-    const status  = document.getElementById('addStatus');
 
     form.addEventListener('submit', async function (e) {
         e.preventDefault();
 
         const symbol = form.querySelector('[name=symbol]').value.trim();
         if (!symbol) {
-            showStatus(false, 'กรุณากรอก Symbol หุ้น');
+            window.toast('error', 'กรุณากรอก Symbol หุ้น');
             return;
         }
 
         btn.disabled = true;
         btnText.innerHTML = '<span class="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span> กำลังดึงข้อมูลจาก Yahoo Finance...';
-        status.classList.add('hidden');
 
         try {
             const res = await fetch(form.dataset.action, {
@@ -165,28 +161,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
             const data = await res.json();
 
-            showStatus(data.success, data.message);
+            window.toast(data.success ? 'success' : 'error', data.message);
 
             if (data.success) {
                 form.querySelector('[name=symbol]').value = '';
-                // รีโหลดรายการหุ้นหลังเพิ่มสำเร็จ (หน่วงให้เห็นข้อความ)
-                setTimeout(() => window.location.reload(), 1200);
+                // รีโหลดรายการหุ้นหลังเพิ่มสำเร็จ (หน่วงให้เห็น toast)
+                setTimeout(() => window.location.reload(), 1400);
             }
         } catch (err) {
-            showStatus(false, 'เกิดข้อผิดพลาด: ' + err.message);
+            window.toast('error', 'เกิดข้อผิดพลาด: ' + err.message);
         } finally {
             btn.disabled = false;
             btnText.textContent = 'ดึงข้อมูลและเพิ่ม';
         }
     });
-
-    function showStatus(ok, msg) {
-        status.className = 'rounded-xl p-3 text-sm ' + (ok
-            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-            : 'bg-red-50 border border-red-200 text-red-700');
-        status.textContent = msg;
-        status.classList.remove('hidden');
-    }
 });
 </script>
 @endpush

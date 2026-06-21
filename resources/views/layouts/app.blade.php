@@ -65,22 +65,11 @@
         </div>
     </header>
 
-    {{-- Flash Messages --}}
-    @if(session('success') || session('error'))
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-        @if(session('success'))
-            <div class="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-sm">
-                <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {{ session('success') }}
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm">
-                <svg class="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {{ session('error') }}
-            </div>
-        @endif
-    </div>
+    {{-- Flash Messages → ส่งให้ SweetAlert toast (ใน app.js) --}}
+    @if(session('success'))
+        <script>window.__flash = {type: 'success', msg: @json(session('success'))};</script>
+    @elseif(session('error'))
+        <script>window.__flash = {type: 'error', msg: @json(session('error'))};</script>
     @endif
 
     {{-- Main --}}
