@@ -107,9 +107,13 @@ class LineWebhookController extends Controller
             return;
         }
 
-        // ตอบทันที แล้วประมวลผล AI ใน background (กัน webhook timeout)
-        $this->line->reply($replyToken, "🤖 กำลังวิเคราะห์ {$stock->symbol} สักครู่นะครับ...");
-        AskStockJob::dispatch($sourceId, $stock->symbol);
+        // แสดง loading animation (จุดเด้งๆ) ระหว่างรอ AI
+        $this->line->startLoading($sourceId, 60);
+
+        // ประมวลผล AI หลังส่ง 200 กลับ LINE แล้ว (defer) → ไม่ webhook timeout, ไม่ต้องพึ่ง queue/cron
+        // AskStockJob::__construct(replyTo, symbol)
+        $symbol = $stock->symbol;
+        defer(fn () => AskStockJob::dispatchSync($sourceId, $symbol));
     }
 
     /** /plan SYMBOL เงินต่อเดือน ปี — จำลอง DCA ย้อนหลัง */

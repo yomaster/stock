@@ -60,6 +60,31 @@ class LineService
     }
 
     /**
+     * แสดง loading animation (จุดเด้งๆ) ในแชท 1:1 ระหว่างรอประมวลผล
+     * loadingSeconds ต้องเป็นจำนวนเท่าของ 5 และไม่เกิน 60
+     */
+    public function startLoading(string $userId, int $seconds = 60): bool
+    {
+        $token = $this->token();
+        if (!$token) {
+            return false;
+        }
+        $seconds = max(5, min(60, (int) (round($seconds / 5) * 5)));
+
+        try {
+            $response = Http::withToken($token)->asJson()
+                ->post('https://api.line.me/v2/bot/chat/loading/start', [
+                    'chatId'         => $userId,
+                    'loadingSeconds' => $seconds,
+                ]);
+            return $response->successful();
+        } catch (\Throwable $e) {
+            Log::error('LINE loading error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * ส่งหา recipient หลักที่ตั้งไว้ใน settings (สำหรับรายงานสรุป)
      */
     public function pushToDefault(string|array $messages): bool
