@@ -21,6 +21,7 @@ Route::post('/settings', [SettingsController::class, 'update'])->name('settings.
 // พอร์ตการลงทุน + AI health check
 Route::prefix('portfolio')->name('portfolio.')->group(function () {
     Route::get('/', [PortfolioController::class, 'index'])->name('index');
+    Route::get('/holdings', [PortfolioController::class, 'holdings'])->name('holdings');
     Route::post('/items', [PortfolioController::class, 'storeItem'])->name('items.store');
     Route::delete('/items/{item}', [PortfolioController::class, 'destroyItem'])->name('items.destroy');
     Route::post('/health-check', [PortfolioController::class, 'healthCheck'])->name('health');

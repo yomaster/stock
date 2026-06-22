@@ -18,17 +18,34 @@ class PortfolioController extends Controller
 {
     public function __construct(private SettingsService $settings) {}
 
+    private const PER_PAGE = 10;
+
     public function index()
     {
         $portfolio = $this->defaultPortfolio();
         $stocks    = Stock::orderBy('symbol')->get();
         $data      = $this->buildHoldings($portfolio);
 
+        // สัดส่วนสำหรับกราฟ: group ตาม symbol (รวมทุก lot ของหุ้นเดียวกัน)
+        $allocation   = $this->groupBySymbol($data['holdings'], $data['total_value_thb']);
+        $holdingsPage = $this->paginateHoldings($data['holdings'], 1);
+
         return view('portfolio.index', array_merge($data, [
-            'portfolio' => $portfolio,
-            'stocks'    => $stocks,
-            'rate'      => $this->exchangeRate(),
+            'portfolio'    => $portfolio,
+            'stocks'       => $stocks,
+            'rate'         => $this->exchangeRate(),
+            'allocation'   => $allocation,
+            'holdingsPage' => $holdingsPage,
         ]));
+    }
+
+    /** AJAX: ตารางรายการถือครองแบบแบ่งหน้า */
+    public function holdings(Request $request)
+    {
+        $data = $this->buildHoldings($this->defaultPortfolio());
+        $holdingsPage = $this->paginateHoldings($data['holdings'], (int) $request->input('page', 1));
+
+        return view('portfolio._holdings', compact('holdingsPage'))->render();
     }
 
     public function storeItem(Request $request)
@@ -220,6 +237,37 @@ class PortfolioController extends Controller
             }
             return $this->exchangeRate(); // fallback เรตปัจจุบัน
         });
+    }
+
+    /** รวม holdings ตาม symbol (สำหรับกราฟสัดส่วน) — รวมทุก lot ของหุ้นเดียวกัน */
+    private function groupBySymbol(array $holdings, float $totalValueThb): array
+    {
+        $grouped = [];
+        foreach ($holdings as $h) {
+            $sym = $h['symbol'];
+            if (!isset($grouped[$sym])) {
+                $grouped[$sym] = ['symbol' => $sym, 'name' => $h['name'], 'value_thb' => 0];
+            }
+            $grouped[$sym]['value_thb'] += $h['value_thb'];
+        }
+        foreach ($grouped as &$g) {
+            $g['allocation'] = $totalValueThb > 0 ? ($g['value_thb'] / $totalValueThb) * 100 : 0;
+        }
+        unset($g);
+
+        usort($grouped, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
+        return array_values($grouped);
+    }
+
+    /** แบ่งหน้า holdings (คำนวณใน PHP แล้ว slice) */
+    private function paginateHoldings(array $holdings, int $page): array
+    {
+        $total = count($holdings);
+        $pages = (int) max(1, ceil($total / self::PER_PAGE));
+        $page  = max(1, min($page, $pages));
+        $items = array_slice($holdings, ($page - 1) * self::PER_PAGE, self::PER_PAGE);
+
+        return ['items' => $items, 'page' => $page, 'pages' => $pages, 'total' => $total];
     }
 
     /**
