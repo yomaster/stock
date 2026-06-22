@@ -99,13 +99,7 @@ class LineWebhookController extends Controller
     private function cmdAsk(array $parts, string $replyToken, ?string $sourceId): void
     {
         if (count($parts) < 2) {
-            $this->line->reply($replyToken, "ใช้: /ask SYMBOL\nเช่น /ask NVDA หรือ /ask PTT");
-            return;
-        }
-
-        $stock = $this->resolveStock($parts[1]);
-        if (!$stock) {
-            $this->line->reply($replyToken, $this->notFoundText($parts[1]));
+            $this->line->reply($replyToken, "ใช้: /ask SYMBOL\nเช่น /ask NVDA หรือ /ask PTT.BK");
             return;
         }
 
@@ -114,13 +108,48 @@ class LineWebhookController extends Controller
             return;
         }
 
-        // แสดง loading animation (จุดเด้งๆ) ระหว่างรอ AI
+        // แสดง loading animation (จุดเด้งๆ) ระหว่างรอ
         $this->line->startLoading($sourceId, 60);
 
-        // ประมวลผล AI หลังส่ง 200 กลับ LINE แล้ว (defer) → ไม่ webhook timeout, ไม่ต้องพึ่ง queue/cron
-        // AskStockJob::__construct(replyTo, symbol)
-        $symbol = $stock->symbol;
-        defer(fn () => AskStockJob::dispatchSync($sourceId, $symbol));
+        // resolve หรือดึงจาก Yahoo ถ้ายังไม่มี + วิเคราะห์ — ทำหลังส่ง 200 (defer)
+        $input = $parts[1];
+        defer(function () use ($input, $sourceId) {
+            $stock = $this->resolveOrImport($input);
+            if (!$stock) {
+                app(LineService::class)->push($sourceId, "ไม่พบหุ้น " . strtoupper($input)
+                    . " บน Yahoo Finance\nลองใส่ suffix ให้ถูก เช่น PTT.BK (ไทย) หรือ TSM (US)");
+                return;
+            }
+            AskStockJob::dispatchSync($sourceId, $stock->symbol);
+        });
+    }
+
+    /**
+     * หา Stock ในระบบ — ถ้าไม่มี ดึงจาก Yahoo อัตโนมัติ (ฟรี ไม่กิน AI token)
+     * ลอง symbol ตามที่พิมพ์ก่อน แล้วลองเติม .BK (หุ้นไทย)
+     */
+    private function resolveOrImport(string $input): ?Stock
+    {
+        $sym = strtoupper(trim($input));
+
+        // มีในระบบแล้ว
+        $stock = Stock::where('symbol', $sym)->first()
+            ?? Stock::where('symbol', $sym . '.BK')->first();
+        if ($stock) {
+            return $stock;
+        }
+
+        // ดึงจาก Yahoo (ราคา 5 ปี) — ลอง symbol ตามพิมพ์
+        \Illuminate\Support\Facades\Artisan::call('app:fetch-stock-data', ['symbol' => $sym, '--years' => 5]);
+        $stock = Stock::where('symbol', $sym)->first();
+
+        // ไม่เจอ + ไม่มี .BK → ลองเติม .BK (เผื่อพิมพ์หุ้นไทยลืม suffix)
+        if (!$stock && !str_ends_with($sym, '.BK')) {
+            \Illuminate\Support\Facades\Artisan::call('app:fetch-stock-data', ['symbol' => $sym . '.BK', '--years' => 5]);
+            $stock = Stock::where('symbol', $sym . '.BK')->first();
+        }
+
+        return $stock;
     }
 
     /** /plan SYMBOL เงินต่อเดือน ปี — จำลอง DCA ย้อนหลัง */
