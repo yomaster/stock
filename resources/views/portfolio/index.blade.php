@@ -209,9 +209,14 @@
             {{-- AI Health Check --}}
             <div class="glass-card p-6">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-semibold text-slate-800">🩺 ตรวจสุขภาพพอร์ตด้วย AI</h3>
+                    <div>
+                        <h3 class="font-semibold text-slate-800">🩺 ตรวจสุขภาพพอร์ตด้วย AI</h3>
+                        <p id="healthAt" class="text-xs text-slate-400 mt-0.5 {{ $latestHealthAt ? '' : 'hidden' }}">
+                            วิเคราะห์ล่าสุด: <span id="healthAtValue">{{ $latestHealthAt }}</span>
+                        </p>
+                    </div>
                     <button id="healthBtn" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition shadow-sm active:scale-[0.98] disabled:opacity-60">
-                        วิเคราะห์พอร์ต
+                        {{ $latestHealthHtml ? 'วิเคราะห์ใหม่' : 'วิเคราะห์พอร์ต' }}
                     </button>
                 </div>
                 <div id="healthLoading" class="hidden flex-col items-center py-10 text-center">
@@ -221,7 +226,8 @@
                     </div>
                     <p class="text-slate-500 text-sm">AI กำลังตรวจสุขภาพพอร์ต...</p>
                 </div>
-                <div id="healthResult" class="md-content text-sm text-slate-600"></div>
+                {{-- แสดงผลวิเคราะห์ล่าสุด (ถ้ามี) --}}
+                <div id="healthResult" class="md-content text-sm text-slate-600">{!! $latestHealthHtml !!}</div>
             </div>
         @endif
     </div>
@@ -474,6 +480,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await res.json();
             if (data.success) {
                 result.innerHTML = data.analysis_html;
+                // อัปเดตเวลาวิเคราะห์ล่าสุด + ปุ่มเป็น "วิเคราะห์ใหม่"
+                if (data.analyzed_at) {
+                    document.getElementById('healthAtValue').textContent = data.analyzed_at;
+                    document.getElementById('healthAt').classList.remove('hidden');
+                }
+                btn.textContent = 'วิเคราะห์ใหม่';
             } else {
                 window.toast('error', data.message || 'วิเคราะห์ไม่สำเร็จ');
             }

@@ -30,13 +30,20 @@ class PortfolioController extends Controller
         $allocation   = $this->groupBySymbol($data['holdings'], $data['total_value_thb']);
         $holdingsPage = $this->paginateHoldings($data['holdings'], 1);
 
+        // ผลวิเคราะห์ AI ล่าสุดของพอร์ตนี้ (ถ้ามี)
+        $latest = $portfolio->latestHealthCheck;
+        $latestHealthHtml = $latest ? Str::markdown($latest->analysis) : null;
+        $latestHealthAt   = $latest ? $latest->created_at->format('d/m/Y H:i') : null;
+
         return view('portfolio.index', array_merge($data, [
-            'portfolio'    => $portfolio,
-            'portfolios'   => Portfolio::orderBy('name')->get(),
-            'stocks'       => $stocks,
-            'rate'         => $this->currentFx(),
-            'allocation'   => $allocation,
-            'holdingsPage' => $holdingsPage,
+            'portfolio'        => $portfolio,
+            'portfolios'       => Portfolio::orderBy('name')->get(),
+            'stocks'           => $stocks,
+            'rate'             => $this->currentFx(),
+            'allocation'       => $allocation,
+            'holdingsPage'     => $holdingsPage,
+            'latestHealthHtml' => $latestHealthHtml,
+            'latestHealthAt'   => $latestHealthAt,
         ]));
     }
 
@@ -240,10 +247,16 @@ class PortfolioController extends Controller
             return response()->json(['success' => false, 'message' => $msg]);
         }
 
+        $markdown = trim($result);
+
+        // บันทึกผลทุกครั้งที่วิเคราะห์ (เก็บประวัติ — แสดงเฉพาะล่าสุดของพอร์ตนี้)
+        $portfolio->healthChecks()->create(['analysis' => $markdown]);
+
         // แปลง Markdown → HTML (commonmark escape raw html ให้อยู่แล้ว ปลอดภัย)
         return response()->json([
             'success'       => true,
-            'analysis_html' => Str::markdown(trim($result)),
+            'analysis_html' => Str::markdown($markdown),
+            'analyzed_at'   => now()->format('d/m/Y H:i'),
         ]);
     }
 

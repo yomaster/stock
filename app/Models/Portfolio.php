@@ -12,4 +12,15 @@ class Portfolio extends Model
     {
         return $this->hasMany(PortfolioItem::class);
     }
+
+    public function healthChecks()
+    {
+        return $this->hasMany(PortfolioHealthCheck::class);
+    }
+
+    /** ผลวิเคราะห์ล่าสุดของพอร์ตนี้ */
+    public function latestHealthCheck()
+    {
+        return $this->hasOne(PortfolioHealthCheck::class)->latestOfMany();
+    }
 }
