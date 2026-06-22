@@ -124,21 +124,27 @@ class SettingsService
      */
     private function all(): array
     {
-        return Cache::rememberForever(self::CACHE_KEY, function () {
-            $map = [];
-            foreach (Setting::all() as $row) {
-                $val = $row->value;
-                if ($row->is_secret && $val) {
-                    try {
-                        $val = Crypt::decryptString($val);
-                    } catch (\Throwable $e) {
-                        $val = null; // ถอดรหัสไม่ได้ (เช่น APP_KEY เปลี่ยน) → ถือว่าไม่มีค่า
+        try {
+            return Cache::rememberForever(self::CACHE_KEY, function () {
+                $map = [];
+                foreach (Setting::all() as $row) {
+                    $val = $row->value;
+                    if ($row->is_secret && $val) {
+                        try {
+                            $val = Crypt::decryptString($val);
+                        } catch (\Throwable $e) {
+                            $val = null; // ถอดรหัสไม่ได้ (เช่น APP_KEY เปลี่ยน) → ถือว่าไม่มีค่า
+                        }
                     }
+                    $map[$row->key] = $val;
                 }
-                $map[$row->key] = $val;
-            }
-            return $map;
-        });
+                return $map;
+            });
+        } catch (\Throwable $e) {
+            // ตาราง settings/cache ยังไม่ถูกสร้าง (ก่อน migrate ครั้งแรก) → ใช้ค่า default แทน
+            // กัน deadlock: artisan ทุกคำสั่งโหลด console.php → เรียก SettingsService
+            return [];
+        }
     }
 
     public function clearCache(): void
