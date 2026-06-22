@@ -52,6 +52,17 @@ class PortfolioController extends Controller
         return back()->with('success', "สร้างพอร์ต \"{$portfolio->name}\" แล้ว");
     }
 
+    /** เปลี่ยนชื่อพอร์ต */
+    public function renamePortfolio(Request $request, Portfolio $portfolio)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+        ]);
+        $portfolio->update(['name' => $validated['name']]);
+
+        return back()->with('success', "เปลี่ยนชื่อพอร์ตเป็น \"{$portfolio->name}\"");
+    }
+
     /** สลับพอร์ตที่กำลังดู */
     public function switchPortfolio(Portfolio $portfolio)
     {

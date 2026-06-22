@@ -29,6 +29,7 @@ Route::prefix('portfolio')->name('portfolio.')->group(function () {
 
     // จัดการพอร์ต (หลายพอร์ต)
     Route::post('/portfolios', [PortfolioController::class, 'storePortfolio'])->name('portfolios.store');
+    Route::put('/portfolios/{portfolio}', [PortfolioController::class, 'renamePortfolio'])->name('portfolios.rename');
     Route::get('/portfolios/{portfolio}/switch', [PortfolioController::class, 'switchPortfolio'])->name('portfolios.switch');
     Route::delete('/portfolios/{portfolio}', [PortfolioController::class, 'destroyPortfolio'])->name('portfolios.destroy');
 });

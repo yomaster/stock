@@ -21,6 +21,11 @@
             @endforeach
         </select>
 
+        <button type="button" id="renamePortfolioBtn" title="แก้ไขชื่อพอร์ต" data-name="{{ $portfolio->name }}"
+            class="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-xl transition">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </button>
+
         <button type="button" id="newPortfolioBtn" title="สร้างพอร์ตใหม่"
             class="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition shadow-sm">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -41,6 +46,11 @@
         <form id="newPortfolioForm" method="POST" action="{{ route('portfolio.portfolios.store') }}" class="hidden">
             @csrf
             <input type="hidden" name="name" id="newPortfolioName">
+        </form>
+        {{-- ฟอร์มซ่อนสำหรับเปลี่ยนชื่อพอร์ต --}}
+        <form id="renamePortfolioForm" method="POST" action="{{ route('portfolio.portfolios.rename', $portfolio) }}" class="hidden">
+            @csrf @method('PUT')
+            <input type="hidden" name="name" id="renamePortfolioName">
         </form>
     </div>
 </div>
@@ -328,6 +338,26 @@ document.getElementById('newPortfolioBtn')?.addEventListener('click', async func
     if (value && value.trim()) {
         document.getElementById('newPortfolioName').value = value.trim();
         document.getElementById('newPortfolioForm').submit();
+    }
+});
+
+// ── เปลี่ยนชื่อพอร์ต (Swal prompt prefill ชื่อเดิม) ──
+document.getElementById('renamePortfolioBtn')?.addEventListener('click', async function () {
+    const { value } = await Swal.fire({
+        title: 'แก้ไขชื่อพอร์ต',
+        input: 'text',
+        inputLabel: 'ชื่อพอร์ต',
+        inputValue: this.dataset.name || '',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#4f46e5',
+        customClass: { popup: 'rounded-2xl' },
+        inputValidator: v => (!v || !v.trim()) ? 'กรุณาใส่ชื่อพอร์ต' : null,
+    });
+    if (value && value.trim()) {
+        document.getElementById('renamePortfolioName').value = value.trim();
+        document.getElementById('renamePortfolioForm').submit();
     }
 });
 
