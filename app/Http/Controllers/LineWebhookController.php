@@ -132,24 +132,42 @@ class LineWebhookController extends Controller
     {
         $sym = strtoupper(trim($input));
 
-        // มีในระบบแล้ว
-        $stock = Stock::where('symbol', $sym)->first()
-            ?? Stock::where('symbol', $sym . '.BK')->first();
-        if ($stock) {
+        // มีในระบบแล้ว + มีราคาจริง (ลองตามพิมพ์ → .BK)
+        if ($stock = $this->stockWithPrices($sym)) {
+            return $stock;
+        }
+        if ($stock = $this->stockWithPrices($sym . '.BK')) {
             return $stock;
         }
 
-        // ดึงจาก Yahoo (ราคา 5 ปี) — ลอง symbol ตามพิมพ์
-        \Illuminate\Support\Facades\Artisan::call('app:fetch-stock-data', ['symbol' => $sym, '--years' => 5]);
-        $stock = Stock::where('symbol', $sym)->first();
-
-        // ไม่เจอ + ไม่มี .BK → ลองเติม .BK (เผื่อพิมพ์หุ้นไทยลืม suffix)
-        if (!$stock && !str_ends_with($sym, '.BK')) {
-            \Illuminate\Support\Facades\Artisan::call('app:fetch-stock-data', ['symbol' => $sym . '.BK', '--years' => 5]);
-            $stock = Stock::where('symbol', $sym . '.BK')->first();
+        // ดึงจาก Yahoo — ลอง symbol ตามพิมพ์
+        $this->importSymbol($sym);
+        if ($stock = $this->stockWithPrices($sym)) {
+            return $stock;
         }
 
-        return $stock;
+        // ไม่ได้ราคา → ลองเติม .BK (เผื่อหุ้นไทยลืม suffix)
+        if (!str_ends_with($sym, '.BK')) {
+            $this->importSymbol($sym . '.BK');
+            if ($stock = $this->stockWithPrices($sym . '.BK')) {
+                return $stock;
+            }
+        }
+
+        return null;
+    }
+
+    /** Stock ที่มีราคาในระบบจริง (ไม่ใช่แค่ record เปล่า) */
+    private function stockWithPrices(string $symbol): ?Stock
+    {
+        return Stock::where('symbol', $symbol)->whereHas('prices')->first();
+    }
+
+    /** ดึงราคาจาก Yahoo — ถ้าได้ record เปล่า (ไม่มีราคา) ลบทิ้งกันขยะ */
+    private function importSymbol(string $symbol): void
+    {
+        \Illuminate\Support\Facades\Artisan::call('app:fetch-stock-data', ['symbol' => $symbol, '--years' => 5]);
+        Stock::where('symbol', $symbol)->whereDoesntHave('prices')->delete();
     }
 
     /** /plan SYMBOL เงินต่อเดือน ปี — จำลอง DCA ย้อนหลัง */
