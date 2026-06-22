@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Jobs\AskStockJob;
 use App\Models\News;
+use App\Models\Portfolio;
 use App\Models\Stock;
 use App\Services\InvestmentService;
 use App\Services\LineService;
+use App\Services\PortfolioService;
 use App\Services\SettingsService;
 use Illuminate\Http\Request;
 
@@ -16,6 +18,7 @@ class LineWebhookController extends Controller
         private LineService $line,
         private SettingsService $settings,
         private InvestmentService $investment,
+        private PortfolioService $portfolio,
     ) {}
 
     public function handle(Request $request)
@@ -74,6 +77,10 @@ class LineWebhookController extends Controller
                 break;
             case '/news':
                 $this->cmdNews($parts, $replyToken);
+                break;
+            case '/portfolio':
+            case '/port':
+                $this->cmdPortfolio($parts, $replyToken, $sourceId);
                 break;
             case '/list':
                 $this->cmdList($replyToken);
@@ -193,6 +200,104 @@ class LineWebhookController extends Controller
         $this->line->reply($replyToken, trim($msg));
     }
 
+    /** /portfolio [ชื่อ] — ดูพอร์ต (ไม่ระบุ = ลิสต์ให้เลือก / ระบุ = สถิติ + กราฟ) */
+    private function cmdPortfolio(array $parts, string $replyToken, ?string $sourceId): void
+    {
+        // ไม่ระบุชื่อ → แสดงรายการพอร์ตเป็น quick reply ให้เลือก
+        if (count($parts) < 2) {
+            $portfolios = Portfolio::orderBy('name')->get();
+            if ($portfolios->isEmpty()) {
+                $this->line->reply($replyToken, "ยังไม่มีพอร์ต — สร้างได้ที่หน้าเว็บ");
+                return;
+            }
+            $items = [];
+            foreach ($portfolios->take(13) as $p) {
+                $items[] = [
+                    'type'   => 'action',
+                    'action' => ['type' => 'message', 'label' => mb_substr($p->name, 0, 20), 'text' => '/portfolio ' . $p->name],
+                ];
+            }
+            $this->line->reply($replyToken, [
+                'type'       => 'text',
+                'text'       => "📁 เลือกพอร์ตที่ต้องการดู:",
+                'quickReply' => ['items' => $items],
+            ]);
+            return;
+        }
+
+        // ระบุชื่อ → หาพอร์ต (ตรงตัวก่อน แล้ว partial)
+        $name = trim(implode(' ', array_slice($parts, 1)));
+        $portfolio = Portfolio::where('name', $name)->first()
+            ?? Portfolio::where('name', 'like', '%' . $name . '%')->first();
+
+        if (!$portfolio) {
+            $this->line->reply($replyToken, "ไม่พบพอร์ต \"{$name}\"\nพิมพ์ /portfolio เพื่อดูรายการ");
+            return;
+        }
+
+        if (!$sourceId) {
+            $this->line->reply($replyToken, "ไม่สามารถระบุผู้รับได้");
+            return;
+        }
+
+        // คำนวณ + ส่งกราฟใช้เวลา (ดึงราคาสด) → loading + defer + push
+        $this->line->startLoading($sourceId, 30);
+        $portfolioId = $portfolio->id;
+        defer(function () use ($sourceId, $portfolioId) {
+            $portfolio = Portfolio::find($portfolioId);
+            if (!$portfolio) {
+                return;
+            }
+            $data = $this->portfolio->buildHoldings($portfolio);
+            $line = app(LineService::class);
+
+            if (empty($data['holdings'])) {
+                $line->push($sourceId, "💼 {$portfolio->name}\nพอร์ตนี้ยังว่าง — เพิ่มหุ้นที่หน้าเว็บก่อน");
+                return;
+            }
+
+            $alloc = $this->portfolio->groupBySymbol($data['holdings'], $data['total_value_thb']);
+            $pl    = $data['total_pl_thb'];
+            $sign  = $pl >= 0 ? '+' : '';
+
+            $txt  = "💼 {$portfolio->name}\n━━━━━━━━━━━━━\n";
+            $txt .= "มูลค่า: " . number_format($data['total_value_thb'], 0) . " บาท\n";
+            $txt .= "เงินลงทุน: " . number_format($data['total_cost_thb'], 0) . " บาท\n";
+            $txt .= ($pl >= 0 ? "✅ " : "🔻 ") . "กำไร/ขาดทุน: {$sign}" . number_format($pl, 0)
+                . " บาท ({$sign}" . number_format($data['total_pl_percent'], 1) . "%)\n\n";
+            $txt .= "📊 สัดส่วน (Top " . min(8, count($alloc)) . "):\n";
+            foreach (array_slice($alloc, 0, 8) as $a) {
+                $txt .= "• {$a['symbol']} " . number_format($a['allocation'], 1) . "%\n";
+            }
+
+            $chartUrl = $this->allocationChartUrl($alloc);
+
+            $line->push($sourceId, [
+                ['type' => 'text', 'text' => trim($txt)],
+                ['type' => 'image', 'originalContentUrl' => $chartUrl, 'previewImageUrl' => $chartUrl],
+            ]);
+        });
+    }
+
+    /** สร้าง URL กราฟ doughnut สัดส่วนพอร์ตผ่าน QuickChart (ฟรี, คืน PNG) */
+    private function allocationChartUrl(array $alloc): string
+    {
+        $config = [
+            'type' => 'doughnut',
+            'data' => [
+                'labels'   => array_map(fn ($a) => $a['symbol'], $alloc),
+                'datasets' => [['data' => array_map(fn ($a) => round($a['value_thb'], 2), $alloc)]],
+            ],
+            'options' => [
+                'plugins' => [
+                    'legend' => ['position' => 'right'],
+                    'title'  => ['display' => true, 'text' => 'Portfolio Allocation'],
+                ],
+            ],
+        ];
+        return 'https://quickchart.io/chart?w=500&h=300&c=' . urlencode(json_encode($config));
+    }
+
     /** /list — หุ้นทั้งหมดในระบบ */
     private function cmdList(string $replyToken): void
     {
@@ -225,7 +330,8 @@ class LineWebhookController extends Controller
             . "/ask SYMBOL — วิเคราะห์ด้วย AI\n"
             . "/plan SYMBOL เงิน/เดือน ปี — จำลอง DCA\n"
             . "/news SYMBOL — ข่าวล่าสุด\n"
+            . "/portfolio — ดูพอร์ต + กราฟสัดส่วน\n"
             . "/list — ดูหุ้นทั้งหมด\n\n"
-            . "ตัวอย่าง:\n/ask NVDA\n/plan PTT 5000 10\n/news AAPL";
+            . "ตัวอย่าง:\n/ask NVDA\n/plan PTT 5000 10\n/portfolio";
     }
 }
