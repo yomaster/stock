@@ -7,7 +7,7 @@
 <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
     <div>
         <h1 class="text-2xl font-bold text-slate-900">💼 พอร์ตการลงทุน</h1>
-        <p class="text-slate-500 text-sm mt-1">เรทสดวันนี้ USD→THB ≈ {{ number_format($rate, 2) }} บาท · กำไร/ขาดทุนคิดทั้งราคาหุ้นและค่าเงิน</p>
+        <p class="text-slate-500 text-sm mt-1">ราคาหุ้นสดจาก Yahoo (~15 นาที) · เรท USD→THB ≈ {{ number_format($rate, 2) }} บาท · กำไร/ขาดทุนคิดทั้งราคาหุ้นและค่าเงิน</p>
     </div>
 
     {{-- ตัวเลือกพอร์ต --}}

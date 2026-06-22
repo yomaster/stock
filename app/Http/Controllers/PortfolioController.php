@@ -279,6 +279,23 @@ class PortfolioController extends Controller
         return (float) $this->settings->get('general.default_exchange_rate', 33);
     }
 
+    /** ราคาหุ้นสด (near real-time) จาก Yahoo regularMarketPrice — cache 3 นาที, null ถ้าดึงไม่ได้ */
+    private function livePrice(string $symbol): ?float
+    {
+        return Cache::remember("live_price:{$symbol}", now()->addMinutes(3), function () use ($symbol) {
+            try {
+                $resp = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
+                    ->get("https://query1.finance.yahoo.com/v8/finance/chart/{$symbol}", [
+                        'interval' => '1d', 'range' => '1d',
+                    ]);
+                $price = $resp->json('chart.result.0.meta.regularMarketPrice');
+                return $price ? (float) $price : null;
+            } catch (\Throwable $e) {
+                return null;
+            }
+        });
+    }
+
     /** อัตราแลกเปลี่ยน USD→THB สด (วันนี้) จาก Yahoo THB=X — cache 6 ชม. fallback ค่า setting */
     private function currentFx(): float
     {
@@ -399,9 +416,12 @@ class PortfolioController extends Controller
                 continue;
             }
 
+            // ราคาสดจาก Yahoo (near real-time) → fallback ราคาปิดล่าสุดใน DB → ราคาที่ซื้อ
             $latest = StockPrice::where('stock_id', $stock->id)
                 ->orderBy('date', 'desc')->first();
-            $currentPrice = $latest?->close ?? $item->purchase_price;
+            $currentPrice = $this->livePrice($stock->symbol)
+                ?? $latest?->close
+                ?? $item->purchase_price;
 
             $value = $currentPrice * $item->shares;       // มูลค่าปัจจุบัน (สกุลหุ้น)
             $isUsd = !str_ends_with(strtoupper($stock->symbol), '.BK');
