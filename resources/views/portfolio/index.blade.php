@@ -6,7 +6,7 @@
 
 <div class="mb-8">
     <h1 class="text-2xl font-bold text-slate-900">💼 พอร์ตการลงทุน</h1>
-    <p class="text-slate-500 text-sm mt-1">กรอกหุ้นที่ถือจริง → ดูมูลค่า กำไร/ขาดทุน และให้ AI ตรวจสุขภาพพอร์ต (แปลง USD→THB ที่ {{ number_format($rate, 2) }} บาท)</p>
+    <p class="text-slate-500 text-sm mt-1">กรอกหุ้นที่ถือจริง → ดูมูลค่า กำไร/ขาดทุน และให้ AI ตรวจสุขภาพพอร์ต (เรทสดวันนี้ USD→THB ≈ {{ number_format($rate, 2) }} บาท)</p>
 </div>
 
 {{-- สรุปรวม --}}

@@ -33,7 +33,7 @@ class PortfolioController extends Controller
         return view('portfolio.index', array_merge($data, [
             'portfolio'    => $portfolio,
             'stocks'       => $stocks,
-            'rate'         => $this->exchangeRate(),
+            'rate'         => $this->currentFx(),
             'allocation'   => $allocation,
             'holdingsPage' => $holdingsPage,
         ]));
@@ -183,9 +183,30 @@ class PortfolioController extends Controller
         );
     }
 
+    /** ค่า fallback เมื่อดึงเรทสดไม่ได้ */
     private function exchangeRate(): float
     {
         return (float) $this->settings->get('general.default_exchange_rate', 33);
+    }
+
+    /** อัตราแลกเปลี่ยน USD→THB สด (วันนี้) จาก Yahoo THB=X — cache 6 ชม. fallback ค่า setting */
+    private function currentFx(): float
+    {
+        return Cache::remember('fx_usdthb_current', now()->addHours(6), function () {
+            try {
+                $resp = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
+                    ->get('https://query1.finance.yahoo.com/v8/finance/chart/THB=X', [
+                        'interval' => '1d', 'range' => '1d',
+                    ]);
+                $price = $resp->json('chart.result.0.meta.regularMarketPrice');
+                if ($price) {
+                    return (float) $price;
+                }
+            } catch (\Throwable $e) {
+                // ตกไป fallback
+            }
+            return $this->exchangeRate();
+        });
     }
 
     /** ราคาปิด (สกุลหุ้น) ณ วันที่ หรือวันทำการก่อนหน้าที่ใกล้ที่สุด */
@@ -275,7 +296,7 @@ class PortfolioController extends Controller
      */
     private function buildHoldings(Portfolio $portfolio): array
     {
-        $rate = $this->exchangeRate();
+        $rate = $this->currentFx(); // เรทสดวันนี้ สำหรับแปลงมูลค่าปัจจุบัน USD→THB
         $items = $portfolio->items()->with('stock')->get();
 
         $holdings = [];

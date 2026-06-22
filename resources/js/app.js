@@ -1,9 +1,48 @@
 import Chart from 'chart.js/auto';
 import Swal from 'sweetalert2';
+import flatpickr from 'flatpickr';
+import 'flatpickr/dist/flatpickr.min.css';
 
 // เปิดให้ blade @push scripts เรียกใช้ได้
 window.Chart = Chart;
 window.Swal = Swal;
+
+// เดือนไทยสำหรับ date picker
+const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+// แปลง input[type=date] ทั้งหมดเป็น flatpickr แสดง พ.ศ. ภาษาไทย (เก็บ value เป็น Y-m-d)
+window.initThaiDatePickers = function (root = document) {
+    root.querySelectorAll('input[type="date"]:not([data-fp])').forEach(function (el) {
+        el.dataset.fp = '1';
+        flatpickr(el, {
+            dateFormat: 'Y-m-d',
+            altInput: true,
+            altFormat: 'thaibuddhist',
+            allowInput: false,
+            maxDate: el.max || null,
+            locale: {
+                weekdays: {
+                    shorthand: ['อา','จ','อ','พ','พฤ','ศ','ส'],
+                    longhand: ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'],
+                },
+                months: {
+                    shorthand: THAI_MONTHS.map(m => m.substring(0, 3)),
+                    longhand: THAI_MONTHS,
+                },
+            },
+            // แสดงผลในช่อง altInput เป็น "21 มิถุนายน 2569"
+            formatDate: function (date, format) {
+                if (format === 'thaibuddhist') {
+                    return date.getDate() + ' ' + THAI_MONTHS[date.getMonth()] + ' ' + (date.getFullYear() + 543);
+                }
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            },
+        });
+    });
+};
 
 // Toast แจ้งเตือนมุมขวาบน (ใช้กับ บันทึก/เพิ่ม/ลบ สำเร็จหรือล้มเหลว)
 window.toast = function (icon, title) {
@@ -20,6 +59,9 @@ window.toast = function (icon, title) {
 };
 
 document.addEventListener('DOMContentLoaded', function () {
+    // แปลง date input เป็น Thai date picker
+    window.initThaiDatePickers();
+
     // แสดง flash message จาก server (set ผ่าน window.__flash ใน layout)
     if (window.__flash && window.__flash.msg) {
         window.toast(window.__flash.type || 'success', window.__flash.msg);
