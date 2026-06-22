@@ -203,7 +203,19 @@ class LineWebhookController extends Controller
         $profit  = $r['profit_loss_value'] >= 0;
         $sign    = $profit ? '+' : '';
 
-        $msg  = "📈 DCA {$stock->symbol} ย้อนหลัง {$years} ปี\n";
+        // ช่วงข้อมูลจริง — อาจสั้นกว่า $years ที่ขอ ถ้าหุ้นมีราคาใน DB ไม่ครบ
+        //   โชว์ช่วงจริง (MM/YYYY) + จำนวนปีที่คำนวณได้จริง แทนการพิมพ์ "{$years} ปี" ตรงๆ ที่หลอกตา
+        $months    = (int) ($r['actual_months'] ?? $years * 12);
+        $realYears = round($months / 12, 1);
+        $startTxt  = \Illuminate\Support\Carbon::parse($r['actual_start'])->format('m/Y');
+        $endTxt    = \Illuminate\Support\Carbon::parse($r['actual_end'])->format('m/Y');
+
+        $msg  = "📈 DCA {$stock->symbol}\n";
+        $msg .= "ช่วงข้อมูล: {$startTxt} – {$endTxt} (~{$realYears} ปี)\n";
+        // เตือนเมื่อข้อมูลจริงสั้นกว่าที่ขอเกิน 1 เดือน — ผู้ใช้จะได้รู้ว่าทำไมเงินสะสมไม่เท่าที่คิด
+        if ($months < $years * 12 - 1) {
+            $msg .= "⚠️ ขอ {$years} ปี แต่มีข้อมูลแค่ ~{$realYears} ปี\n";
+        }
         $msg .= "ลงทุนเดือนละ " . number_format($monthly) . " {$cur}\n";
         $msg .= "━━━━━━━━━━━━━\n";
         $msg .= "เงินลงทุนสะสม: " . number_format($r['total_invested'], 0) . " {$cur}\n";

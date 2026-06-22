@@ -102,6 +102,12 @@ class InvestmentService
             }
         }
 
+        // ช่วงข้อมูลจริงที่ใช้คำนวณ — อาจสั้นกว่า $years ที่ขอ ถ้าหุ้นมีราคาใน DB ไม่ครบ
+        //   (เช่น import มาแค่ 5 ปี แต่ผู้ใช้ขอ 10 ปี) → ส่งกลับไปให้ caller โชว์ช่วงจริง ไม่ให้ label หลอกตา
+        $actualStart  = Carbon::parse($prices->first()->date);
+        $actualEnd    = Carbon::parse($prices->last()->date);
+        $actualMonths = count($pricesByMonth);
+
         // ดึงราคาหุ้นล่าสุด ณ ปัจจุบัน
         $latestPriceRecord = $prices->last();
         $currentPrice = $latestPriceRecord->close;
@@ -122,6 +128,10 @@ class InvestmentService
             'symbol' => $symbol,
             'currency' => $stock->currency,
             'years' => $years,
+            // ช่วงเวลาจริงที่มีข้อมูล — ใช้โชว์แทน $years เมื่อข้อมูลไม่ครบ
+            'actual_start' => $actualStart->toDateString(),
+            'actual_end' => $actualEnd->toDateString(),
+            'actual_months' => $actualMonths,
             'total_invested' => $totalInvested,
             'total_shares' => $totalShares,
             'total_dividends_received' => $dividendReceived,
