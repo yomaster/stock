@@ -22,7 +22,7 @@ class PortfolioController extends Controller
 
     public function index()
     {
-        $portfolio = $this->defaultPortfolio();
+        $portfolio = $this->currentPortfolio();
         $stocks    = Stock::orderBy('symbol')->get();
         $data      = $this->buildHoldings($portfolio);
 
@@ -32,6 +32,7 @@ class PortfolioController extends Controller
 
         return view('portfolio.index', array_merge($data, [
             'portfolio'    => $portfolio,
+            'portfolios'   => Portfolio::orderBy('name')->get(),
             'stocks'       => $stocks,
             'rate'         => $this->currentFx(),
             'allocation'   => $allocation,
@@ -39,10 +40,42 @@ class PortfolioController extends Controller
         ]));
     }
 
+    /** สร้างพอร์ตใหม่ + ตั้งเป็นพอร์ตที่เลือก */
+    public function storePortfolio(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+        ]);
+        $portfolio = Portfolio::create(['name' => $validated['name']]);
+        session(['active_portfolio_id' => $portfolio->id]);
+
+        return back()->with('success', "สร้างพอร์ต \"{$portfolio->name}\" แล้ว");
+    }
+
+    /** สลับพอร์ตที่กำลังดู */
+    public function switchPortfolio(Portfolio $portfolio)
+    {
+        session(['active_portfolio_id' => $portfolio->id]);
+        return back()->with('success', "เปลี่ยนไปพอร์ต \"{$portfolio->name}\"");
+    }
+
+    /** ลบพอร์ต (กันลบจนเหลือ 0) */
+    public function destroyPortfolio(Portfolio $portfolio)
+    {
+        if (Portfolio::count() <= 1) {
+            return back()->with('error', 'ต้องมีอย่างน้อย 1 พอร์ต — ลบพอร์ตสุดท้ายไม่ได้');
+        }
+        $name = $portfolio->name;
+        $portfolio->delete(); // cascade ลบ items ด้วย
+        session()->forget('active_portfolio_id');
+
+        return back()->with('success', "ลบพอร์ต \"{$name}\" แล้ว");
+    }
+
     /** AJAX: ตารางรายการถือครองแบบแบ่งหน้า */
     public function holdings(Request $request)
     {
-        $data = $this->buildHoldings($this->defaultPortfolio());
+        $data = $this->buildHoldings($this->currentPortfolio());
         $holdingsPage = $this->paginateHoldings($data['holdings'], (int) $request->input('page', 1));
 
         return view('portfolio._holdings', compact('holdingsPage'))->render();
@@ -58,65 +91,95 @@ class PortfolioController extends Controller
 
         $stock = Stock::findOrFail($request->input('stock_id'));
         $date  = $request->input('purchase_date') ?: now()->toDateString();
-        $mode  = $request->input('mode');
 
-        // ราคาปิดหุ้น (สกุลของหุ้น) ณ วันที่ หรือวันทำการก่อนหน้าที่ใกล้ที่สุด
+        $fields = $this->computeItemFields($stock, $request->input('mode'), $date, $request);
+        if (isset($fields['error'])) {
+            return back()->with('error', $fields['error']);
+        }
+
+        $this->currentPortfolio()->items()->create([
+            'stock_id'          => $stock->id,
+            'invested_amount'   => $fields['invested'],
+            'invested_currency' => $fields['investedCurrency'],
+            'shares'            => $fields['shares'],
+            'purchase_price'    => $fields['purchasePrice'],
+            'purchase_date'     => $date,
+        ]);
+
+        return back()->with('success', "เพิ่ม {$stock->symbol} แล้ว — {$fields['detail']}");
+    }
+
+    /** แก้ไขรายการถือครอง (หุ้นเดิม เปลี่ยนเงิน/หุ้น/วันที่ได้) */
+    public function updateItem(Request $request, PortfolioItem $item)
+    {
+        $request->validate([
+            'mode'          => 'required|in:amount,shares',
+            'purchase_date' => 'nullable|date|before_or_equal:today',
+        ]);
+
+        $stock = $item->stock;
+        $date  = $request->input('purchase_date') ?: now()->toDateString();
+
+        $fields = $this->computeItemFields($stock, $request->input('mode'), $date, $request);
+        if (isset($fields['error'])) {
+            return back()->with('error', $fields['error']);
+        }
+
+        $item->update([
+            'invested_amount'   => $fields['invested'],
+            'invested_currency' => $fields['investedCurrency'],
+            'shares'            => $fields['shares'],
+            'purchase_price'    => $fields['purchasePrice'],
+            'purchase_date'     => $date,
+        ]);
+
+        return back()->with('success', "แก้ไข {$stock->symbol} แล้ว — {$fields['detail']}");
+    }
+
+    /**
+     * คำนวณ shares/ราคา/เงินลงทุน จาก input (ใช้ร่วม store + update)
+     * คืน ['error'=>...] ถ้าไม่มีราคา หรือ ['shares','purchasePrice','invested','investedCurrency','detail']
+     */
+    private function computeItemFields(Stock $stock, string $mode, string $date, Request $request): array
+    {
         $priceNative = $this->historicalPrice($stock->id, $date);
         if (!$priceNative) {
-            return back()->with('error', "ไม่มีข้อมูลราคา {$stock->symbol} ณ วันที่เลือก — ลองวันหลังจากนี้ หรืออัปเดตข้อมูลหุ้นก่อน");
+            return ['error' => "ไม่มีข้อมูลราคา {$stock->symbol} ณ วันที่เลือก — ลองวันหลังจากนี้ หรืออัปเดตข้อมูลหุ้นก่อน"];
         }
 
         if ($mode === 'shares') {
-            // โหมดรวบรัด: ใส่จำนวนหุ้นที่ถืออยู่ + ต้นทุนเฉลี่ย (ไม่บังคับ)
             $data = $request->validate([
-                'shares'   => 'required|numeric|min:0.0001',
+                'shares'   => 'required|numeric|min:0.0000001',
                 'avg_cost' => 'nullable|numeric|min:0',
             ]);
             $shares = (float) $data['shares'];
 
             if (!empty($data['avg_cost'])) {
-                // มีต้นทุนเฉลี่ย (สกุลของหุ้น) → คำนวณเงินลงทุนรวม
                 $purchasePrice    = (float) $data['avg_cost'];
                 $invested         = round($purchasePrice * $shares, 2);
                 $investedCurrency = $stock->currency;
-                $detail = number_format($shares, 4) . " หุ้น @ ต้นทุน " . number_format($purchasePrice, 2) . " {$stock->currency}";
+                $detail = rtrim(rtrim(number_format($shares, 7), '0'), '.') . " หุ้น @ ต้นทุน " . number_format($purchasePrice, 2) . " {$stock->currency}";
             } else {
-                // ไม่รู้ต้นทุน → ใช้ราคาปัจจุบันเป็นฐาน (กำไร/ขาดทุนเริ่มที่ ~0%)
                 $purchasePrice    = $priceNative;
                 $invested         = null;
                 $investedCurrency = null;
-                $detail = number_format($shares, 4) . " หุ้น (ตั้งต้นที่ราคาปัจจุบัน)";
+                $detail = rtrim(rtrim(number_format($shares, 7), '0'), '.') . " หุ้น (ตั้งต้นที่ราคาปัจจุบัน)";
             }
         } else {
-            // โหมดจำนวนเงิน: คำนวณหุ้นจากราคา + FX ย้อนหลังวันนั้น
             $data = $request->validate([
                 'invested_amount'   => 'required|numeric|min:1',
                 'invested_currency' => 'required|in:THB,USD',
             ]);
-            $amountNative = $this->toNativeAmount(
-                (float) $data['invested_amount'],
-                $data['invested_currency'],
-                $stock->currency,
-                $date
-            );
+            $amountNative     = $this->toNativeAmount((float) $data['invested_amount'], $data['invested_currency'], $stock->currency, $date);
             $shares           = $amountNative / $priceNative;
             $purchasePrice    = $priceNative;
             $invested         = (float) $data['invested_amount'];
             $investedCurrency = $data['invested_currency'];
             $detail = "ลงทุน " . number_format($invested, 0) . " {$investedCurrency} → "
-                . number_format($shares, 4) . " หุ้น @ " . number_format($priceNative, 2) . " {$stock->currency}";
+                . rtrim(rtrim(number_format($shares, 7), '0'), '.') . " หุ้น @ " . number_format($priceNative, 2) . " {$stock->currency}";
         }
 
-        $this->defaultPortfolio()->items()->create([
-            'stock_id'          => $stock->id,
-            'invested_amount'   => $invested,
-            'invested_currency' => $investedCurrency,
-            'shares'            => $shares,
-            'purchase_price'    => $purchasePrice,
-            'purchase_date'     => $date,
-        ]);
-
-        return back()->with('success', "เพิ่ม {$stock->symbol} แล้ว — {$detail}");
+        return compact('shares', 'purchasePrice', 'invested', 'investedCurrency', 'detail');
     }
 
     public function destroyItem(PortfolioItem $item)
@@ -130,7 +193,7 @@ class PortfolioController extends Controller
      */
     public function healthCheck(GeminiService $gemini)
     {
-        $portfolio = $this->defaultPortfolio();
+        $portfolio = $this->currentPortfolio();
         $data = $this->buildHoldings($portfolio);
 
         if (empty($data['holdings'])) {
@@ -175,12 +238,15 @@ class PortfolioController extends Controller
 
     // ───────────────────────── helpers ─────────────────────────
 
-    private function defaultPortfolio(): Portfolio
+    /** พอร์ตที่กำลังเลือกอยู่ (จาก session) — fallback พอร์ตแรก/สร้างใหม่ */
+    private function currentPortfolio(): Portfolio
     {
-        return Portfolio::firstOrCreate(
-            ['name' => 'พอร์ตของฉัน'],
-            ['description' => 'พอร์ตการลงทุนหลัก']
-        );
+        $id = session('active_portfolio_id');
+        if ($id && ($p = Portfolio::find($id))) {
+            return $p;
+        }
+        return Portfolio::orderBy('id')->first()
+            ?? Portfolio::create(['name' => 'พอร์ตของฉัน', 'description' => 'พอร์ตการลงทุนหลัก']);
     }
 
     /** ค่า fallback เมื่อดึงเรทสดไม่ได้ */
@@ -341,6 +407,7 @@ class PortfolioController extends Controller
                 'invested_amount' => $item->invested_amount,
                 'invested_currency' => $item->invested_currency,
                 'purchase_date'  => $item->purchase_date?->format('d/m/Y'),
+                'purchase_date_raw' => $item->purchase_date?->format('Y-m-d'),
                 'current_price'  => $currentPrice,
                 'value'          => $value,
                 'value_thb'      => $valueThb,

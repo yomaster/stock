@@ -23,8 +23,14 @@ Route::prefix('portfolio')->name('portfolio.')->group(function () {
     Route::get('/', [PortfolioController::class, 'index'])->name('index');
     Route::get('/holdings', [PortfolioController::class, 'holdings'])->name('holdings');
     Route::post('/items', [PortfolioController::class, 'storeItem'])->name('items.store');
+    Route::put('/items/{item}', [PortfolioController::class, 'updateItem'])->name('items.update');
     Route::delete('/items/{item}', [PortfolioController::class, 'destroyItem'])->name('items.destroy');
     Route::post('/health-check', [PortfolioController::class, 'healthCheck'])->name('health');
+
+    // จัดการพอร์ต (หลายพอร์ต)
+    Route::post('/portfolios', [PortfolioController::class, 'storePortfolio'])->name('portfolios.store');
+    Route::get('/portfolios/{portfolio}/switch', [PortfolioController::class, 'switchPortfolio'])->name('portfolios.switch');
+    Route::delete('/portfolios/{portfolio}', [PortfolioController::class, 'destroyPortfolio'])->name('portfolios.destroy');
 });
 
 // Stock management (เพิ่ม/ลบ/รีเฟรชหุ้น)
