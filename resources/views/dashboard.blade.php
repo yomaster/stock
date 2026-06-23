@@ -80,10 +80,10 @@
         {{-- Right column --}}
         <div class="lg:col-span-2 space-y-6">
 
-            {{-- AI Analyses --}}
-            @if($latestAnalyses->isNotEmpty())
+            {{-- ผลวิเคราะห์ AI (แยกรายคน) — แสดงเสมอ; ถ้ายังไม่มีโชว์ empty state (ข่าวไปดูที่หน้าหุ้นรายตัว) --}}
             <div class="glass-card p-6">
                 <h2 class="font-semibold text-slate-800 mb-4">ผลวิเคราะห์ AI ล่าสุด</h2>
+                @if($latestAnalyses->isNotEmpty())
                 <div class="space-y-3">
                     @foreach($latestAnalyses as $a)
                     <div class="flex items-start gap-3 p-3 bg-white/50 rounded-xl border border-slate-100">
@@ -105,31 +105,16 @@
                     </div>
                     @endforeach
                 </div>
-            </div>
-            @endif
-
-            {{-- News --}}
-            <div class="glass-card p-6">
-                <h2 class="font-semibold text-slate-800 mb-4">ข่าวล่าสุด</h2>
-                @if($latestNews->isEmpty())
-                    <p class="text-slate-400 text-xs">ยังไม่มีข่าว</p>
                 @else
-                    <div class="space-y-3">
-                        @foreach($latestNews as $news)
-                        <div class="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                            <a href="{{ $news->url }}" target="_blank" rel="noopener"
-                               class="text-sm text-slate-700 hover:text-indigo-600 font-medium line-clamp-2 transition">
-                                {{ $news->title_th ?? $news->title }}
-                            </a>
-                            @if($news->summary_th)
-                                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ $news->summary_th }}</p>
-                            @endif
-                            <div class="text-xs text-slate-400 mt-1">
-                                {{ $news->source }} · {{ \Carbon\Carbon::parse($news->published_at)->diffForHumans() }}
-                            </div>
-                        </div>
-                        @endforeach
-                    </div>
+                {{-- empty state — ยังไม่เคยวิเคราะห์ --}}
+                <div class="flex flex-col items-center justify-center py-12 text-center">
+                    <div class="w-14 h-14 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-3 text-2xl">🤖</div>
+                    <p class="text-slate-500 text-sm font-medium">ยังไม่มีผลวิเคราะห์ AI</p>
+                    <p class="text-slate-400 text-xs mt-1 max-w-xs">ไปที่หน้าหุ้นรายตัว แล้วกดปุ่ม "AI วิเคราะห์" เพื่อเริ่มเก็บผลวิเคราะห์ของคุณ</p>
+                    <a href="{{ route('stocks.index') }}" class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                        ดูหุ้นทั้งหมด →
+                    </a>
+                </div>
                 @endif
             </div>
 

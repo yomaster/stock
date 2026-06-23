@@ -46,10 +46,6 @@ class DashboardController extends Controller
             })
             ->values();
 
-        // ข่าวล่าสุด 5 ข่าว (เฉพาะหุ้นที่ติดตาม)
-        $latestNews = $this->newsForSymbols($symbols)
-            ->orderBy('published_at', 'desc')->limit(5)->get();
-
         // หุ้นทั้งหมดพร้อมราคาล่าสุด
         $stocks = $this->userStocks()->with(['prices' => function ($q) {
             $q->orderBy('date', 'desc')->limit(2);
@@ -72,7 +68,7 @@ class DashboardController extends Controller
 
         return view('dashboard', compact(
             'stockCount', 'priceCount', 'newsCount',
-            'latestAnalyses', 'latestNews', 'stocks'
+            'latestAnalyses', 'stocks'
         ));
     }
 
