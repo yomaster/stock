@@ -50,6 +50,21 @@ class GeminiService
         $url = $this->baseUrl . $this->model . ':generateContent?key=' . $this->apiKey;
         $this->lastStatus = null;
 
+        $generationConfig = array_merge([
+            'temperature' => 0.2, // ตั้งอุณหภูมิต่ำเพื่อให้ได้ข้อมูลที่วิเคราะห์อย่างมีเหตุผลและไม่จินตนาการมากเกินไป
+            // ⚠️ thinking model (เช่น gemini-2.5-pro) ใช้ token ไปกับการ "คิด" ด้วย — ตั้งต่ำไปจะโดน
+            //    truncate (finishReason=MAX_TOKENS) แล้วคืน text ว่าง → ต้องเผื่อ budget ให้พอ
+            'maxOutputTokens' => 4096,
+        ], $config);
+
+        // ⚠️ ปิด thinking สำหรับ model ที่ไม่ใช่ pro (flash/flash-lite)
+        //    flash รุ่น 2.5+ เปิด thinking เป็น default → กิน token จน text ว่าง (เหมือนที่ flash-lite เคยใช้ได้
+        //    เพราะ thinking ปิดอยู่) ตั้ง thinkingBudget=0 ให้ flash ทำงานเหมือน flash-lite: เร็ว ถูก ไม่ truncate
+        //    (pro ตั้ง 0 ไม่ได้ — minimum budget > 0 จะ error 400 จึงคง thinking ไว้ + พึ่ง maxOutputTokens 4096)
+        if (!str_contains($this->model, 'pro')) {
+            $generationConfig['thinkingConfig'] = ['thinkingBudget' => 0];
+        }
+
         try {
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
@@ -61,12 +76,7 @@ class GeminiService
                         ]
                     ]
                 ],
-                'generationConfig' => array_merge([
-                    'temperature' => 0.2, // ตั้งอุณหภูมิต่ำเพื่อให้ได้ข้อมูลที่วิเคราะห์อย่างมีเหตุผลและไม่จินตนาการมากเกินไป
-                    // ⚠️ thinking model (เช่น gemini-2.5-pro) ใช้ token ไปกับการ "คิด" ด้วย — ตั้งต่ำไปจะโดน
-                    //    truncate (finishReason=MAX_TOKENS) แล้วคืน text ว่าง → ต้องเผื่อ budget ให้พอ
-                    'maxOutputTokens' => 4096,
-                ], $config)
+                'generationConfig' => $generationConfig,
             ]);
 
             $this->lastStatus = $response->status();
