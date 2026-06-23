@@ -77,7 +77,8 @@ class SendSummary extends Command
                 . "เป็นภาษาไทยสั้นๆ 2-3 ประโยค กระชับ อ่านเข้าใจง่ายสำหรับนักลงทุนมือใหม่ "
                 . "อิงจากพาดหัวข่าวล่าสุดต่อไปนี้:\n{$newsBlock}\n\n"
                 . "ตอบเฉพาะเนื้อหาสรุป ไม่ต้องมีหัวข้อหรือ markdown";
-            $ai = $gemini->generateText($prompt, ['maxOutputTokens' => 512]);
+            // สรุปข่าว ไม่ต้องการ model ฉลาดมาก — ใช้ summary model (Flash Lite ตามตั้งค่า)
+            $ai = $gemini->useSummaryModel()->generateText($prompt, ['maxOutputTokens' => 512]);
             if ($ai) {
                 $overview = trim($ai);
             }

@@ -10,6 +10,16 @@ class SettingsService
 {
     private const CACHE_KEY = 'app_settings';
 
+    /** รายชื่อ Gemini model ที่รองรับ — key = model ID ส่งไป API, value = label ใน UI */
+    public const GEMINI_MODELS = [
+        'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite (ประหยัดสุด · RPM 4K)',
+        'gemini-2.5-flash'      => 'Gemini 2.5 Flash (RPM 1K)',
+        'gemini-2.5-pro'        => 'Gemini 2.5 Pro · แนะนำสำหรับวิเคราะห์ (RPM 150)',
+        'gemini-3.5-flash'      => 'Gemini 3.5 Flash (RPM 1K)',
+        'gemini-3.1-flash-lite' => 'Gemini 3.1 Flash Lite (RPM 4K)',
+        'gemini-3.1-pro'        => 'Gemini 3.1 Pro · ฉลาดสุด (RPM 25)',
+    ];
+
     /**
      * Registry ของ setting ทั้งหมด — เป็น source เดียวที่ใช้ทั้งอ่านค่า และสร้างหน้า UI
      * - secret: true → เข้ารหัสก่อนเก็บ DB + ปิดบังในหน้าเว็บ
@@ -21,10 +31,17 @@ class SettingsService
             'group' => 'gemini', 'label' => 'Gemini API Key', 'secret' => true,
             'help' => 'สมัครฟรีที่ aistudio.google.com/apikey',
         ],
-        'gemini.model' => [
-            'group' => 'gemini', 'label' => 'Gemini Model', 'secret' => false,
-            'default' => 'gemini-2.5-flash-lite',
-            'help' => 'แนะนำ gemini-2.5-flash-lite (โควต้าฟรีรายวันสูงกว่า flash) · 2.0-flash quota=0 ใช้ไม่ได้',
+        'gemini.model_analysis' => [
+            'group' => 'gemini', 'label' => 'Model วิเคราะห์หุ้น (/ask)', 'secret' => false,
+            'type' => 'select', 'default' => 'gemini-2.5-pro',
+            'options' => self::GEMINI_MODELS,
+            'help' => 'ใช้กับคำสั่ง /ask — Pro model ให้ผลวิเคราะห์แม่นยำกว่า (RPM ต่ำกว่า แต่งานนี้รันน้อยครั้ง)',
+        ],
+        'gemini.model_summary' => [
+            'group' => 'gemini', 'label' => 'Model สรุปข่าว (Morning)', 'secret' => false,
+            'type' => 'select', 'default' => 'gemini-2.5-flash-lite',
+            'options' => self::GEMINI_MODELS,
+            'help' => 'ใช้กับสรุปเช้า — Flash Lite เพียงพอ ประหยัด token และ RPM สูงกว่า',
         ],
 
         // ── LINE Messaging API ──

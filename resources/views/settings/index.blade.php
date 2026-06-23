@@ -39,14 +39,26 @@
                         @endif
                     </label>
 
-                    <input
-                        type="{{ $secret ? 'password' : 'text' }}"
-                        name="{{ $field }}"
-                        value="{{ $secret ? '' : $item['value'] }}"
-                        placeholder="{{ $secret ? ($item['is_set'] ? 'เว้นว่างไว้ = ไม่เปลี่ยนค่าเดิม' : 'กรอกค่า...') : '' }}"
-                        autocomplete="{{ $secret ? 'new-password' : 'off' }}"
-                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400
-                               focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
+                    @if(($meta['type'] ?? '') === 'select' && !empty($meta['options']))
+                        <select name="{{ $field }}"
+                            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
+                                   focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
+                            @foreach($meta['options'] as $optVal => $optLabel)
+                                <option value="{{ $optVal }}" @selected($item['value'] === $optVal || (!$item['value'] && ($meta['default'] ?? '') === $optVal))>
+                                    {{ $optLabel }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @else
+                        <input
+                            type="{{ $secret ? 'password' : 'text' }}"
+                            name="{{ $field }}"
+                            value="{{ $secret ? '' : $item['value'] }}"
+                            placeholder="{{ $secret ? ($item['is_set'] ? 'เว้นว่างไว้ = ไม่เปลี่ยนค่าเดิม' : 'กรอกค่า...') : '' }}"
+                            autocomplete="{{ $secret ? 'new-password' : 'off' }}"
+                            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400
+                                   focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
+                    @endif
 
                     @if(!empty($meta['help']))
                         <p class="text-xs text-slate-400 mt-1.5">{{ $meta['help'] }}</p>

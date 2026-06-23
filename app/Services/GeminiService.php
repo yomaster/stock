@@ -16,10 +16,21 @@ class GeminiService
 
     public function __construct()
     {
-        // อ่านจาก SettingsService (DB) ก่อน → fallback ไป config()/.env อัตโนมัติ
         $settings = app(SettingsService::class);
         $this->apiKey = $settings->get('gemini.api_key');
-        $this->model  = $settings->get('gemini.model', 'gemini-2.5-flash');
+        // default = analysis model (สำหรับ /ask) — SendSummary ใช้ useSummaryModel()
+        $this->model = $settings->get('gemini.model_analysis', 'gemini-2.5-flash-lite');
+    }
+
+    /**
+     * คืน instance ใหม่ที่สลับไปใช้ summary model (Flash Lite)
+     * ใช้ใน SendSummary ที่ต้องการประหยัด token/RPM
+     */
+    public function useSummaryModel(): static
+    {
+        $clone = clone $this;
+        $clone->model = app(SettingsService::class)->get('gemini.model_summary', 'gemini-2.5-flash-lite');
+        return $clone;
     }
 
     /**
