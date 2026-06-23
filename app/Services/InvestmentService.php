@@ -281,17 +281,19 @@ class InvestmentService
             ];
         }
 
-        // บันทึกผลวิเคราะห์ลงฐานข้อมูล
-        $stock->analysisResults()->updateOrCreate(
-            ['date' => Carbon::now()->toDateString()],
-            [
-                'rating' => $aiData['base_cagr'] > 10 ? 'Buy' : ($aiData['base_cagr'] > 4 ? 'Hold' : 'Avoid'),
-                'investment_style' => $aiData['base_cagr'] > 12 ? 'Growth' : ($aiData['risk_score'] > 7 ? 'Momentum' : 'Dividend'),
-                'risk_score' => $aiData['risk_score'],
-                'summary' => $aiData['summary'],
-                'projection_details' => json_encode($projection)
-            ]
-        );
+        // บันทึกผลวิเคราะห์ลงฐานข้อมูล — เฉพาะที่ AI สำเร็จจริง (ไม่เก็บผล fallback ที่เป็นข้อความ error)
+        if ($aiOk) {
+            $stock->analysisResults()->updateOrCreate(
+                ['date' => Carbon::now()->toDateString()],
+                [
+                    'rating' => $aiData['base_cagr'] > 10 ? 'Buy' : ($aiData['base_cagr'] > 4 ? 'Hold' : 'Avoid'),
+                    'investment_style' => $aiData['base_cagr'] > 12 ? 'Growth' : ($aiData['risk_score'] > 7 ? 'Momentum' : 'Dividend'),
+                    'risk_score' => $aiData['risk_score'],
+                    'summary' => $aiData['summary'],
+                    'projection_details' => json_encode($projection)
+                ]
+            );
+        }
 
         return [
             'success' => true,

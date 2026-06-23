@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesUserStocks;
-use App\Models\AnalysisResult;
 use App\Models\News;
+use App\Models\StockAnalysis;
 use App\Models\StockPrice;
 
 class DashboardController extends Controller
@@ -21,12 +21,30 @@ class DashboardController extends Controller
         $priceCount = StockPrice::whereIn('stock_id', $stockIds)->count();
         $newsCount  = $this->newsForSymbols($symbols)->count();
 
-        // หุ้นที่ถูกวิเคราะห์ล่าสุด (เฉพาะหุ้นที่ติดตาม)
-        $latestAnalyses = AnalysisResult::with('stock')
+        // ผลวิเคราะห์ AI ล่าสุดของ user คนนี้ (แยกรายคน จากตาราง stock_analyses)
+        // ดึงล่าสุดต่อหุ้น (unique stock_id) แล้วเอา 5 ตัวที่วิเคราะห์ล่าสุด
+        $latestAnalyses = StockAnalysis::with('stock')
+            ->where('user_id', auth()->id())
             ->whereIn('stock_id', $stockIds)
-            ->orderBy('date', 'desc')
-            ->limit(5)
-            ->get();
+            ->orderByDesc('created_at')
+            ->get()
+            ->unique('stock_id')
+            ->take(5)
+            ->map(function ($a) {
+                $r = $a->result ?? [];
+                $baseCagr = $r['projections']['base']['cagr'] ?? null;
+                // rating: ใช้ที่เก็บไว้ ถ้าไม่มีก็ derive จาก base CAGR (รองรับ row เก่าที่ไม่มี rating)
+                $rating = $r['rating'] ?? ($baseCagr === null ? '—'
+                    : ($baseCagr > 10 ? 'Buy' : ($baseCagr > 4 ? 'Hold' : 'Avoid')));
+                return (object) [
+                    'stock_id'   => $a->stock_id,
+                    'stock'      => $a->stock,
+                    'rating'     => $rating,
+                    'risk_score' => $r['risk_score'] ?? '-',
+                    'summary'    => $r['summary'] ?? '',
+                ];
+            })
+            ->values();
 
         // ข่าวล่าสุด 5 ข่าว (เฉพาะหุ้นที่ติดตาม)
         $latestNews = $this->newsForSymbols($symbols)
