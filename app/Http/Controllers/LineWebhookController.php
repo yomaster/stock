@@ -140,7 +140,7 @@ class LineWebhookController extends Controller
         }
     }
 
-    /** /ask SYMBOL — วิเคราะห์ด้วย AI (ทำใน background แล้ว push กลับ) */
+    /** /ask SYMBOL — วิเคราะห์ด้วย AI (ทำใน background แล้ว reply กลับ — reply token ฟรี ไม่หักโควตา) */
     private function cmdAsk(array $parts, string $replyToken, ?string $sourceId): void
     {
         if (count($parts) < 2) {
@@ -157,15 +157,17 @@ class LineWebhookController extends Controller
         $this->line->startLoading($sourceId, 60);
 
         // resolve หรือดึงจาก Yahoo ถ้ายังไม่มี + วิเคราะห์ — ทำหลังส่ง 200 (defer)
+        // ⚠️ ใช้ reply token (ฟรี) แทน push — AI เสร็จใน ~ไม่กี่วินาที ยังอยู่ในอายุ token (~1 นาที)
+        //    ข้อแลก: ถ้า AI ช้าเกิน ~1 นาที token หมดอายุ ผู้ใช้จะไม่ได้รับข้อความ
         $input = $parts[1];
-        defer(function () use ($input, $sourceId) {
+        defer(function () use ($input, $replyToken) {
             $stock = $this->resolveOrImport($input);
             if (!$stock) {
-                app(LineService::class)->push($sourceId, "ไม่พบหุ้น " . strtoupper($input)
+                app(LineService::class)->reply($replyToken, "ไม่พบหุ้น " . strtoupper($input)
                     . " บน Yahoo Finance\nลองใส่ suffix ให้ถูก เช่น PTT.BK (ไทย) หรือ TSM (US)");
                 return;
             }
-            AskStockJob::dispatchSync($sourceId, $stock->symbol);
+            AskStockJob::dispatchSync($replyToken, $stock->symbol);
         });
     }
 

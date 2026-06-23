@@ -19,15 +19,15 @@ class AskStockJob implements ShouldQueue
     public int $timeout = 120;
 
     public function __construct(
-        public string $replyTo,   // user/group id ที่จะ push ผลกลับ
-        public string $symbol     // symbol จริงใน DB (resolve มาแล้ว)
+        public string $replyToken, // reply token (ฟรี ไม่หักโควตา) — ใช้ภายในอายุ ~1 นาที
+        public string $symbol      // symbol จริงใน DB (resolve มาแล้ว)
     ) {}
 
     public function handle(InvestmentService $investment, LineService $line): void
     {
         $stock = Stock::where('symbol', $this->symbol)->first();
         if (!$stock) {
-            $line->push($this->replyTo, "ไม่พบหุ้น {$this->symbol} ในระบบ");
+            $line->reply($this->replyToken, "ไม่พบหุ้น {$this->symbol} ในระบบ");
             return;
         }
 
@@ -35,7 +35,7 @@ class AskStockJob implements ShouldQueue
         $result = $investment->projectFutureAI($stock->symbol, 0, 10000, 10);
 
         if (!$result['success']) {
-            $line->push($this->replyTo, "วิเคราะห์ {$stock->symbol} ไม่สำเร็จ: " . ($result['error'] ?? 'ลองใหม่อีกครั้ง'));
+            $line->reply($this->replyToken, "วิเคราะห์ {$stock->symbol} ไม่สำเร็จ: " . ($result['error'] ?? 'ลองใหม่อีกครั้ง'));
             return;
         }
 
@@ -50,6 +50,6 @@ class AskStockJob implements ShouldQueue
         $msg .= "🐻 Bear: " . number_format($p['bear']['cagr'], 1) . "%\n\n";
         $msg .= "💡 " . $result['summary'];
 
-        $line->push($this->replyTo, $msg);
+        $line->reply($this->replyToken, $msg);
     }
 }
