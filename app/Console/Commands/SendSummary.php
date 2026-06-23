@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\News;
-use App\Models\Stock;
 use App\Models\StockPrice;
+use App\Models\User;
 use App\Services\GeminiService;
 use App\Services\LineService;
 use Illuminate\Console\Attributes\Description;
@@ -13,7 +13,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
 #[Signature('app:send-summary {--market=ALL : ตลาดที่จะสรุป TH|US|ALL} {--dry : แสดงผลเฉยๆ ไม่ส่ง LINE}')]
-#[Description('สร้างสรุปก่อนตลาดเปิด (ราคา + ภาพรวม AI จากข่าว) แล้วส่งเข้า LINE')]
+#[Description('สร้างสรุปก่อนตลาดเปิด (ราคา + ภาพรวม AI จากข่าว) แล้วส่งเข้า LINE รายคน')]
 class SendSummary extends Command
 {
     public function handle(GeminiService $gemini, LineService $line): int
@@ -25,24 +25,79 @@ class SendSummary extends Command
             default => 'ทุกตลาด',
         };
 
-        // เลือกหุ้นตามตลาด (TH = .BK / US = ไม่มี .BK)
-        $stocks = Stock::all()->filter(function ($s) use ($market) {
-            $isThai = str_ends_with(strtoupper($s->symbol), '.BK');
-            return match ($market) {
-                'TH' => $isThai,
-                'US' => !$isThai,
-                default => true,
-            };
-        });
-
-        if ($stocks->isEmpty()) {
-            $this->warn("ไม่มีหุ้นในตลาด {$market}");
+        // ผู้ใช้ที่เปิดรับสรุป + ผูก LINE แล้ว
+        $users = User::where('summary_enabled', true)->whereNotNull('line_user_id')->get();
+        if ($users->isEmpty()) {
+            $this->warn('ไม่มีผู้ใช้ที่เปิดรับสรุป + ผูก LINE');
             return self::SUCCESS;
         }
 
-        // ── ส่วนราคา + เปลี่ยนแปลงรายตัว ──
+        $sent = 0;
+        foreach ($users as $user) {
+            // หุ้นที่ user คนนี้ติดตาม กรองตามตลาด
+            $stocks = $user->stocks()->get()->filter(function ($s) use ($market) {
+                $isThai = str_ends_with(strtoupper($s->symbol), '.BK');
+                return match ($market) {
+                    'TH' => $isThai,
+                    'US' => !$isThai,
+                    default => true,
+                };
+            });
+
+            if ($stocks->isEmpty()) {
+                continue; // ไม่มีหุ้นในตลาดนี้ → ข้าม
+            }
+
+            [$priceLines, $newsTitles] = $this->collectLines($stocks);
+
+            // ── ภาพรวมจาก AI (1 call ต่อ user; summary model = Flash Lite ประหยัด token) ──
+            $overview = '';
+            if (!empty($newsTitles)) {
+                $newsBlock = implode("\n", array_slice(array_unique($newsTitles), 0, 15));
+                $prompt = "คุณคือนักวิเคราะห์ตลาดหุ้น สรุปภาพรวม{$marketLabel}ก่อนเปิดตลาดวันนี้ "
+                    . "เป็นภาษาไทยสั้นๆ 2-3 ประโยค กระชับ อ่านเข้าใจง่ายสำหรับนักลงทุนมือใหม่ "
+                    . "อิงจากพาดหัวข่าวล่าสุดต่อไปนี้:\n{$newsBlock}\n\n"
+                    . "ตอบเฉพาะเนื้อหาสรุป ไม่ต้องมีหัวข้อหรือ markdown";
+                $ai = $gemini->useSummaryModel()->generateText($prompt, ['maxOutputTokens' => 512]);
+                if ($ai) {
+                    $overview = trim($ai);
+                }
+            }
+
+            // ── ประกอบข้อความ ──
+            $date = Carbon::now()->format('d/m/Y');
+            $msg  = "☀️ สรุปก่อน{$marketLabel}เปิด\n{$date}\n";
+            $msg .= "━━━━━━━━━━━━━\n";
+            $msg .= implode("\n", $priceLines);
+            if ($overview) {
+                $msg .= "\n\n💡 ภาพรวม:\n{$overview}";
+            }
+            $msg .= "\n\nพิมพ์ /ask SYMBOL เพื่อวิเคราะห์เจาะลึก";
+
+            if ($this->option('dry')) {
+                $this->line("===== [{$user->email}] =====");
+                $this->line($msg);
+                continue;
+            }
+
+            if ($line->pushToUser($user, $msg)) {
+                $sent++;
+            }
+        }
+
+        $this->info($this->option('dry') ? 'แสดงตัวอย่างเสร็จ (dry)' : "ส่งสรุป {$marketLabel} แล้ว {$sent} คน");
+        return self::SUCCESS;
+    }
+
+    /**
+     * สร้างบรรทัดราคา + หัวข้อข่าว จาก collection ของหุ้น
+     * @return array{0: string[], 1: string[]} [priceLines, newsTitles]
+     */
+    private function collectLines($stocks): array
+    {
         $priceLines = [];
         $newsTitles = [];
+
         foreach ($stocks as $stock) {
             $prices = StockPrice::where('stock_id', $stock->id)
                 ->orderBy('date', 'desc')->limit(2)->get();
@@ -56,7 +111,7 @@ class SendSummary extends Command
                 ? (($latest->close - $prev->close) / $prev->close) * 100
                 : null;
 
-            $arrow = $change === null ? '•' : ($change >= 0 ? '🟢▲' : '🔴▼');
+            $arrow  = $change === null ? '•' : ($change >= 0 ? '🟢▲' : '🔴▼');
             $chgStr = $change === null ? '' : ' ' . ($change >= 0 ? '+' : '') . number_format($change, 2) . '%';
             $priceLines[] = "{$arrow} {$stock->symbol}: " . number_format($latest->close, 2) . " {$stock->currency}{$chgStr}";
 
@@ -69,39 +124,6 @@ class SendSummary extends Command
             }
         }
 
-        // ── ภาพรวมจาก AI (1 call เดียว ประหยัด token) ──
-        $overview = '';
-        if (!empty($newsTitles)) {
-            $newsBlock = implode("\n", array_slice(array_unique($newsTitles), 0, 15));
-            $prompt = "คุณคือนักวิเคราะห์ตลาดหุ้น สรุปภาพรวม{$marketLabel}ก่อนเปิดตลาดวันนี้ "
-                . "เป็นภาษาไทยสั้นๆ 2-3 ประโยค กระชับ อ่านเข้าใจง่ายสำหรับนักลงทุนมือใหม่ "
-                . "อิงจากพาดหัวข่าวล่าสุดต่อไปนี้:\n{$newsBlock}\n\n"
-                . "ตอบเฉพาะเนื้อหาสรุป ไม่ต้องมีหัวข้อหรือ markdown";
-            // สรุปข่าว ไม่ต้องการ model ฉลาดมาก — ใช้ summary model (Flash Lite ตามตั้งค่า)
-            $ai = $gemini->useSummaryModel()->generateText($prompt, ['maxOutputTokens' => 512]);
-            if ($ai) {
-                $overview = trim($ai);
-            }
-        }
-
-        // ── ประกอบข้อความ ──
-        $date = Carbon::now()->format('d/m/Y');
-        $msg  = "☀️ สรุปก่อน{$marketLabel}เปิด\n{$date}\n";
-        $msg .= "━━━━━━━━━━━━━\n";
-        $msg .= implode("\n", $priceLines);
-        if ($overview) {
-            $msg .= "\n\n💡 ภาพรวม:\n{$overview}";
-        }
-        $msg .= "\n\nพิมพ์ /ask SYMBOL เพื่อวิเคราะห์เจาะลึก";
-
-        if ($this->option('dry')) {
-            $this->line($msg);
-            return self::SUCCESS;
-        }
-
-        $ok = $line->pushToDefault($msg);
-        $this->info($ok ? "ส่งสรุป {$marketLabel} เข้า LINE แล้ว" : "ส่งไม่สำเร็จ (ตรวจ recipient_id / token)");
-
-        return self::SUCCESS;
+        return [$priceLines, $newsTitles];
     }
 }

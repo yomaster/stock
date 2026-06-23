@@ -16,6 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhook/line',
         ]);
+
+        // RBAC: middleware('permission:<menu_group>') → ตรวจสิทธิ์ผ่าน Role
+        $middleware->alias([
+            'permission' => \App\Http\Middleware\EnsurePermission::class,
+        ]);
+
+        // guest ที่ยังไม่ login → ส่งไปหน้า login
+        $middleware->redirectGuestsTo(fn () => route('login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

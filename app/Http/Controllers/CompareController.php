@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Stock;
+use App\Http\Controllers\Concerns\ScopesUserStocks;
 use App\Models\StockPrice;
 use Illuminate\Http\Request;
 
 class CompareController extends Controller
 {
+    use ScopesUserStocks;
+
     public function index(Request $request)
     {
-        $allStocks = Stock::orderBy('symbol')->get();
+        // เปรียบเทียบได้เฉพาะหุ้นที่ user ติดตาม
+        $allStocks = $this->userStocks()->orderBy('symbol')->get();
         $selected  = (array) $request->input('symbols', []);
         $years     = (int) $request->input('years', 1);
         $years     = in_array($years, [1, 2, 3, 5, 10]) ? $years : 1;

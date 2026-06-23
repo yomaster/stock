@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesUserStocks;
 use App\Models\Portfolio;
 use App\Models\PortfolioItem;
 use App\Models\Stock;
-use App\Models\StockPrice;
 use App\Services\GeminiService;
 use App\Services\PortfolioService;
 use Illuminate\Http\Request;
@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
 
 class PortfolioController extends Controller
 {
+    use ScopesUserStocks;
+
     public function __construct(private PortfolioService $svc) {}
 
     private const PER_PAGE = 10;
@@ -20,7 +22,7 @@ class PortfolioController extends Controller
     public function index()
     {
         $portfolio = $this->currentPortfolio();
-        $stocks    = Stock::orderBy('symbol')->get();
+        $stocks    = $this->userStocks()->orderBy('symbol')->get(); // เลือกเพิ่มได้เฉพาะหุ้นที่ติดตาม
         $data      = $this->svc->buildHoldings($portfolio);
 
         // สัดส่วนสำหรับกราฟ: group ตาม symbol (รวมทุก lot ของหุ้นเดียวกัน)
@@ -34,7 +36,7 @@ class PortfolioController extends Controller
 
         return view('portfolio.index', array_merge($data, [
             'portfolio'        => $portfolio,
-            'portfolios'       => Portfolio::orderBy('name')->get(),
+            'portfolios'       => auth()->user()->portfolios()->orderBy('name')->get(),
             'stocks'           => $stocks,
             'rate'             => $this->svc->currentFx(),
             'allocation'       => $allocation,
@@ -50,7 +52,7 @@ class PortfolioController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:100',
         ]);
-        $portfolio = Portfolio::create(['name' => $validated['name']]);
+        $portfolio = $request->user()->portfolios()->create(['name' => $validated['name']]);
         session(['active_portfolio_id' => $portfolio->id]);
 
         return back()->with('success', "สร้างพอร์ต \"{$portfolio->name}\" แล้ว");
@@ -59,6 +61,7 @@ class PortfolioController extends Controller
     /** เปลี่ยนชื่อพอร์ต */
     public function renamePortfolio(Request $request, Portfolio $portfolio)
     {
+        $this->guardOwnsPortfolio($portfolio);
         $validated = $request->validate([
             'name' => 'required|string|max:100',
         ]);
@@ -70,6 +73,7 @@ class PortfolioController extends Controller
     /** สลับพอร์ตที่กำลังดู */
     public function switchPortfolio(Portfolio $portfolio)
     {
+        $this->guardOwnsPortfolio($portfolio);
         session(['active_portfolio_id' => $portfolio->id]);
         return back()->with('success', "เปลี่ยนไปพอร์ต \"{$portfolio->name}\"");
     }
@@ -77,7 +81,8 @@ class PortfolioController extends Controller
     /** ลบพอร์ต (กันลบจนเหลือ 0) */
     public function destroyPortfolio(Portfolio $portfolio)
     {
-        if (Portfolio::count() <= 1) {
+        $this->guardOwnsPortfolio($portfolio);
+        if (auth()->user()->portfolios()->count() <= 1) {
             return back()->with('error', 'ต้องมีอย่างน้อย 1 พอร์ต — ลบพอร์ตสุดท้ายไม่ได้');
         }
         $name = $portfolio->name;
@@ -104,7 +109,8 @@ class PortfolioController extends Controller
             'purchase_date' => 'nullable|date|before_or_equal:today',
         ]);
 
-        $stock = Stock::findOrFail($request->input('stock_id'));
+        // เลือกเพิ่มได้เฉพาะหุ้นที่ user ติดตาม (กัน inject stock_id ของคนอื่น)
+        $stock = $this->userStocks()->findOrFail($request->input('stock_id'));
         $date  = $request->input('purchase_date') ?: now()->toDateString();
 
         $fields = $this->computeItemFields($stock, $request->input('mode'), $date, $request);
@@ -127,6 +133,7 @@ class PortfolioController extends Controller
     /** แก้ไขรายการถือครอง (หุ้นเดิม เปลี่ยนเงิน/หุ้น/วันที่ได้) */
     public function updateItem(Request $request, PortfolioItem $item)
     {
+        $this->guardOwnsItem($item);
         $request->validate([
             'mode'          => 'required|in:amount,shares',
             'purchase_date' => 'nullable|date|before_or_equal:today',
@@ -199,6 +206,7 @@ class PortfolioController extends Controller
 
     public function destroyItem(PortfolioItem $item)
     {
+        $this->guardOwnsItem($item);
         $item->delete();
         return back()->with('success', 'ลบหุ้นออกจากพอร์ตแล้ว');
     }
@@ -259,15 +267,34 @@ class PortfolioController extends Controller
 
     // ───────────────────────── helpers ─────────────────────────
 
-    /** พอร์ตที่กำลังเลือกอยู่ (จาก session) — fallback พอร์ตแรก/สร้างใหม่ */
+    /** พอร์ตที่กำลังเลือกอยู่ (จาก session) — จำกัดเฉพาะของ user ปัจจุบัน */
     private function currentPortfolio(): Portfolio
     {
-        $id = session('active_portfolio_id');
-        if ($id && ($p = Portfolio::find($id))) {
+        $user = auth()->user();
+        $id   = session('active_portfolio_id');
+
+        // session ต้องชี้พอร์ตที่เป็นของ user เท่านั้น (กันค้าง id ของคนอื่น)
+        if ($id && ($p = $user->portfolios()->find($id))) {
             return $p;
         }
-        return Portfolio::orderBy('id')->first()
-            ?? Portfolio::create(['name' => 'พอร์ตของฉัน', 'description' => 'พอร์ตการลงทุนหลัก']);
+        return $user->portfolios()->orderBy('id')->first()
+            ?? $user->portfolios()->create(['name' => 'พอร์ตของฉัน', 'description' => 'พอร์ตการลงทุนหลัก']);
+    }
+
+    /** กัน IDOR: พอร์ตต้องเป็นของ user ปัจจุบัน */
+    private function guardOwnsPortfolio(Portfolio $portfolio): void
+    {
+        if ($portfolio->user_id !== auth()->id()) {
+            abort(404);
+        }
+    }
+
+    /** กัน IDOR: รายการถือครองต้องอยู่ในพอร์ตของ user ปัจจุบัน */
+    private function guardOwnsItem(PortfolioItem $item): void
+    {
+        if ($item->portfolio?->user_id !== auth()->id()) {
+            abort(404);
+        }
     }
 
     /** แบ่งหน้า holdings (คำนวณใน PHP แล้ว slice) */

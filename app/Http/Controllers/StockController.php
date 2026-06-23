@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesUserStocks;
 use App\Models\AnalysisResult;
 use App\Models\News;
 use App\Models\Stock;
@@ -11,9 +12,11 @@ use Illuminate\Http\Request;
 
 class StockController extends Controller
 {
+    use ScopesUserStocks;
+
     public function index()
     {
-        $stocks = Stock::with(['prices' => function ($q) {
+        $stocks = $this->userStocks()->with(['prices' => function ($q) {
             $q->orderBy('date', 'desc')->limit(2);
         }, 'analysisResults' => function ($q) {
             $q->orderBy('date', 'desc')->limit(1);
@@ -44,6 +47,8 @@ class StockController extends Controller
 
     public function show(Stock $stock)
     {
+        $this->guardTracksStock($stock); // กัน IDOR: ต้องเป็นหุ้นที่ user ติดตาม
+
         // ราคาย้อนหลังสูงสุด 10 ปี — ส่งทั้งหมดให้ JS แล้วกรองช่วงปีฝั่ง client ผ่านปุ่มฟิลเตอร์
         $tenYearsAgo = now()->subYears(10)->toDateString();
         $prices = StockPrice::where('stock_id', $stock->id)
@@ -76,11 +81,13 @@ class StockController extends Controller
 
     public function backtestForm(Stock $stock)
     {
+        $this->guardTracksStock($stock);
         return view('stocks.backtest', compact('stock'));
     }
 
     public function backtestRun(Request $request, Stock $stock, InvestmentService $service)
     {
+        $this->guardTracksStock($stock);
         $validated = $request->validate([
             'monthly_amount'    => 'required|numeric|min:100',
             'years'             => 'required|integer|min:1|max:20',
@@ -100,11 +107,13 @@ class StockController extends Controller
 
     public function analyzeForm(Stock $stock)
     {
+        $this->guardTracksStock($stock);
         return view('stocks.analyze', compact('stock'));
     }
 
     public function analyzeRun(Request $request, Stock $stock, InvestmentService $service)
     {
+        $this->guardTracksStock($stock);
         $validated = $request->validate([
             'initial_amount'   => 'required|numeric|min:0',
             'monthly_amount'   => 'required|numeric|min:0',

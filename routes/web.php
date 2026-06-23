@@ -1,58 +1,102 @@
 <?php
 
+use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\CompareController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockManageController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-
-// LINE webhook (ยกเว้น CSRF ใน bootstrap/app.php — ตรวจ signature เองใน controller)
+// LINE webhook (ยกเว้น CSRF ใน bootstrap/app.php — ตรวจ signature เองใน controller) — เปิด public
 Route::post('/webhook/line', [LineWebhookController::class, 'handle'])->name('webhook.line');
 
-// ตั้งค่าระบบ (API keys, ตารางเวลา, ฯลฯ)
-Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
-Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
+// ───────────────────────── Auth (guest) ─────────────────────────
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
+    Route::post('/login', [LoginController::class, 'login']);
 
-// พอร์ตการลงทุน + AI health check
-Route::prefix('portfolio')->name('portfolio.')->group(function () {
-    Route::get('/', [PortfolioController::class, 'index'])->name('index');
-    Route::get('/holdings', [PortfolioController::class, 'holdings'])->name('holdings');
-    Route::post('/items', [PortfolioController::class, 'storeItem'])->name('items.store');
-    Route::put('/items/{item}', [PortfolioController::class, 'updateItem'])->name('items.update');
-    Route::delete('/items/{item}', [PortfolioController::class, 'destroyItem'])->name('items.destroy');
-    Route::post('/health-check', [PortfolioController::class, 'healthCheck'])->name('health');
-
-    // จัดการพอร์ต (หลายพอร์ต)
-    Route::post('/portfolios', [PortfolioController::class, 'storePortfolio'])->name('portfolios.store');
-    Route::put('/portfolios/{portfolio}', [PortfolioController::class, 'renamePortfolio'])->name('portfolios.rename');
-    Route::get('/portfolios/{portfolio}/switch', [PortfolioController::class, 'switchPortfolio'])->name('portfolios.switch');
-    Route::delete('/portfolios/{portfolio}', [PortfolioController::class, 'destroyPortfolio'])->name('portfolios.destroy');
+    // ลืมรหัสผ่าน (ส่งลิงก์ทางอีเมล)
+    Route::get('/forgot-password', [ForgotPasswordController::class, 'showRequest'])->name('password.request');
+    Route::post('/forgot-password', [ForgotPasswordController::class, 'sendLink'])->name('password.email');
+    Route::get('/reset-password/{token}', [ResetPasswordController::class, 'showReset'])->name('password.reset');
+    Route::post('/reset-password', [ResetPasswordController::class, 'reset'])->name('password.update');
 });
 
-// Stock management (เพิ่ม/ลบ/รีเฟรชหุ้น)
-Route::prefix('manage')->name('manage.')->group(function () {
-    Route::get('/', [StockManageController::class, 'index'])->name('index');
-    Route::post('/', [StockManageController::class, 'store'])->name('store');
-    Route::post('/{stock}/refresh', [StockManageController::class, 'refresh'])->name('refresh');
-    Route::delete('/{stock}', [StockManageController::class, 'destroy'])->name('destroy');
-});
+Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth')->name('logout');
 
-// Stock analysis
-Route::prefix('stocks')->name('stocks.')->group(function () {
-    Route::get('/', [StockController::class, 'index'])->name('index');
-    Route::get('/compare', [CompareController::class, 'index'])->name('compare');
-    Route::get('/{stock}', [StockController::class, 'show'])->name('show');
+// ───────────────────────── App (auth required) ─────────────────────────
+Route::middleware('auth')->group(function () {
 
-    // DCA Backtest
-    Route::get('/{stock}/backtest', [StockController::class, 'backtestForm'])->name('backtest');
-    Route::post('/{stock}/backtest', [StockController::class, 'backtestRun'])->name('backtest.run');
+    Route::get('/', [DashboardController::class, 'index'])
+        ->middleware('permission:dashboard')->name('dashboard');
 
-    // AI Projection
-    Route::get('/{stock}/analyze', [StockController::class, 'analyzeForm'])->name('analyze');
-    Route::post('/{stock}/analyze', [StockController::class, 'analyzeRun'])->name('analyze.run');
+    // โปรไฟล์ส่วนตัว (ผูก LINE + ตั้งค่าแจ้งเตือน) — ทุก user เข้าได้ ไม่ต้องมี permission
+    Route::prefix('profile')->name('profile.')->group(function () {
+        Route::get('/', [ProfileController::class, 'index'])->name('index');
+        Route::put('/', [ProfileController::class, 'update'])->name('update');
+        Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password');
+        Route::post('/line-code', [ProfileController::class, 'generateLineCode'])->name('line.code');
+        Route::delete('/line', [ProfileController::class, 'unlinkLine'])->name('line.unlink');
+        Route::put('/alerts', [ProfileController::class, 'updateAlerts'])->name('alerts');
+    });
+
+    // ตั้งค่าระบบ (API keys, ตารางเวลา)
+    Route::middleware('permission:settings')->group(function () {
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
+    });
+
+    // จัดการผู้ใช้ + role
+    Route::middleware('permission:users')->prefix('admin')->name('admin.')->group(function () {
+        Route::resource('users', UserController::class)->except(['show']);
+        Route::put('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
+        Route::resource('roles', RoleController::class)->except(['show']);
+    });
+
+    // พอร์ตการลงทุน + AI health check
+    Route::middleware('permission:portfolio')->prefix('portfolio')->name('portfolio.')->group(function () {
+        Route::get('/', [PortfolioController::class, 'index'])->name('index');
+        Route::get('/holdings', [PortfolioController::class, 'holdings'])->name('holdings');
+        Route::post('/items', [PortfolioController::class, 'storeItem'])->name('items.store');
+        Route::put('/items/{item}', [PortfolioController::class, 'updateItem'])->name('items.update');
+        Route::delete('/items/{item}', [PortfolioController::class, 'destroyItem'])->name('items.destroy');
+        Route::post('/health-check', [PortfolioController::class, 'healthCheck'])->name('health');
+
+        // จัดการพอร์ต (หลายพอร์ต)
+        Route::post('/portfolios', [PortfolioController::class, 'storePortfolio'])->name('portfolios.store');
+        Route::put('/portfolios/{portfolio}', [PortfolioController::class, 'renamePortfolio'])->name('portfolios.rename');
+        Route::get('/portfolios/{portfolio}/switch', [PortfolioController::class, 'switchPortfolio'])->name('portfolios.switch');
+        Route::delete('/portfolios/{portfolio}', [PortfolioController::class, 'destroyPortfolio'])->name('portfolios.destroy');
+    });
+
+    // Stock management (เพิ่ม/ลบ/รีเฟรชหุ้น)
+    Route::middleware('permission:manage')->prefix('manage')->name('manage.')->group(function () {
+        Route::get('/', [StockManageController::class, 'index'])->name('index');
+        Route::post('/', [StockManageController::class, 'store'])->name('store');
+        Route::post('/{stock}/refresh', [StockManageController::class, 'refresh'])->name('refresh');
+        Route::delete('/{stock}', [StockManageController::class, 'destroy'])->name('destroy');
+    });
+
+    // Stock analysis
+    Route::prefix('stocks')->name('stocks.')->group(function () {
+        Route::get('/', [StockController::class, 'index'])->middleware('permission:stocks')->name('index');
+        Route::get('/compare', [CompareController::class, 'index'])->middleware('permission:compare')->name('compare');
+
+        // หน้าวิเคราะห์รายหุ้น — ต้องมีสิทธิ์ stocks
+        Route::middleware('permission:stocks')->group(function () {
+            Route::get('/{stock}', [StockController::class, 'show'])->name('show');
+            Route::get('/{stock}/backtest', [StockController::class, 'backtestForm'])->name('backtest');
+            Route::post('/{stock}/backtest', [StockController::class, 'backtestRun'])->name('backtest.run');
+            Route::get('/{stock}/analyze', [StockController::class, 'analyzeForm'])->name('analyze');
+            Route::post('/{stock}/analyze', [StockController::class, 'analyzeRun'])->name('analyze.run');
+        });
+    });
 });

@@ -85,16 +85,15 @@ class LineService
     }
 
     /**
-     * ส่งหา recipient หลักที่ตั้งไว้ใน settings (สำหรับรายงานสรุป)
+     * ส่งหาผู้ใช้ที่ผูก LINE ไว้ (per-user push สำหรับแจ้งเตือน/สรุป)
+     * คืน false ถ้า user ยังไม่ผูก LINE
      */
-    public function pushToDefault(string|array $messages): bool
+    public function pushToUser(\App\Models\User $user, string|array $messages): bool
     {
-        $to = $this->settings->get('line.recipient_id');
-        if (!$to) {
-            Log::warning('LINE: ยังไม่ได้ตั้ง recipient_id — ข้ามการส่ง');
+        if (!$user->line_user_id) {
             return false;
         }
-        return $this->push($to, $messages);
+        return $this->push($user->line_user_id, $messages);
     }
 
     /**

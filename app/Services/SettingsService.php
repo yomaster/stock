@@ -53,10 +53,6 @@ class SettingsService
             'group' => 'line', 'label' => 'Channel Secret', 'secret' => true,
             'help' => 'ใช้ตรวจลายเซ็น webhook (X-Line-Signature)',
         ],
-        'line.recipient_id' => [
-            'group' => 'line', 'label' => 'ผู้รับสรุป (User/Group ID)', 'secret' => false,
-            'help' => 'User ID หรือ Group ID ปลายทางที่จะ push รายงานสรุปไปให้',
-        ],
 
         // ── ตารางเวลาส่งสรุป ──
         'schedule.th_summary_time' => [
@@ -73,14 +69,8 @@ class SettingsService
             'group' => 'general', 'label' => 'อัตราแลกเปลี่ยน USD→THB เริ่มต้น', 'secret' => false,
             'default' => '33', 'help' => 'ใช้เป็นค่าตั้งต้นในหน้าวิเคราะห์/สรุป',
         ],
-        'alert.price_threshold' => [
-            'group' => 'general', 'label' => 'เกณฑ์แจ้งเตือนราคา (%)', 'secret' => false,
-            'default' => '5', 'help' => 'แจ้งเตือนเมื่อราคาขยับเกิน % นี้ระหว่างวัน',
-        ],
-        'alert.volume_multiplier' => [
-            'group' => 'general', 'label' => 'เกณฑ์แจ้งเตือน Volume (เท่า)', 'secret' => false,
-            'default' => '2.5', 'help' => 'แจ้งเตือนเมื่อ volume วันนี้ > X เท่าของค่าเฉลี่ย 20 วัน',
-        ],
+        // หมายเหตุ: เกณฑ์แจ้งเตือนราคา/volume + recipient ย้ายไปเป็น per-user (ตาราง users)
+        //          ตั้งค่าได้ที่หน้าโปรไฟล์ของแต่ละคน — ไม่ใช่ global settings อีกต่อไป
     ];
 
     /**

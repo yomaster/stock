@@ -34,13 +34,8 @@ class LineWebhookController extends Controller
         $events = $request->input('events', []);
 
         foreach ($events as $event) {
-            // เก็บ source id (user/group/room) ไว้ใช้ push + auto-set recipient
+            // source id (user/group/room) ใช้ push กลับ + จับคู่กับบัญชีผู้ใช้ผ่าน line_user_id
             $sourceId = $this->extractSourceId($event);
-
-            // ตั้ง recipient อัตโนมัติครั้งแรก ถ้ายังไม่เคยตั้ง
-            if ($sourceId && !$this->settings->isSet('line.recipient_id')) {
-                $this->settings->set('line.recipient_id', $sourceId);
-            }
 
             if (($event['type'] ?? '') === 'message' && ($event['message']['type'] ?? '') === 'text') {
                 $text       = trim($event['message']['text'] ?? '');
@@ -57,6 +52,53 @@ class LineWebhookController extends Controller
     {
         $src = $event['source'] ?? [];
         return $src['userId'] ?? $src['groupId'] ?? $src['roomId'] ?? null;
+    }
+
+    /** หา user ที่ผูก LINE id นี้ไว้ (null = ยังไม่ผูกบัญชี) */
+    private function userFromSource(?string $sourceId): ?\App\Models\User
+    {
+        if (!$sourceId) {
+            return null;
+        }
+        return \App\Models\User::where('line_user_id', $sourceId)->first();
+    }
+
+    /** /link รหัส — จับคู่ LINE id นี้กับบัญชีผู้ใช้ (รหัสสร้างจากหน้าโปรไฟล์) */
+    private function cmdLink(array $parts, string $replyToken, ?string $sourceId): void
+    {
+        if (!$sourceId) {
+            $this->line->reply($replyToken, "ไม่สามารถระบุ LINE ID ของคุณได้");
+            return;
+        }
+        if (count($parts) < 2) {
+            $this->line->reply($replyToken, "ใช้: /link รหัส6หลัก\nสร้างรหัสได้ที่หน้าโปรไฟล์ในเว็บ");
+            return;
+        }
+
+        $code = strtoupper(trim($parts[1]));
+        $user = \App\Models\User::where('line_link_code', $code)
+            ->where('line_link_code_expires_at', '>', now())
+            ->first();
+
+        if (!$user) {
+            $this->line->reply($replyToken, "รหัสไม่ถูกต้องหรือหมดอายุแล้ว ❌\nสร้างรหัสใหม่ที่หน้าโปรไฟล์");
+            return;
+        }
+
+        // LINE id นี้ถูกผูกกับบัญชีอื่นอยู่แล้วหรือไม่ (line_user_id unique)
+        $taken = \App\Models\User::where('line_user_id', $sourceId)->where('id', '!=', $user->id)->exists();
+        if ($taken) {
+            $this->line->reply($replyToken, "LINE นี้ถูกผูกกับบัญชีอื่นอยู่แล้ว — ปลดการผูกที่บัญชีนั้นก่อน");
+            return;
+        }
+
+        $user->forceFill([
+            'line_user_id'              => $sourceId,
+            'line_link_code'            => null,
+            'line_link_code_expires_at' => null,
+        ])->save();
+
+        $this->line->reply($replyToken, "✅ ผูกบัญชีสำเร็จ!\nคุณ {$user->name} จะได้รับแจ้งเตือนราคา + สรุปเช้าที่ LINE นี้");
     }
 
     private function handleCommand(string $text, ?string $replyToken, ?string $sourceId): void
@@ -83,7 +125,10 @@ class LineWebhookController extends Controller
                 $this->cmdPortfolio($parts, $replyToken, $sourceId);
                 break;
             case '/list':
-                $this->cmdList($replyToken);
+                $this->cmdList($replyToken, $sourceId);
+                break;
+            case '/link':
+                $this->cmdLink($parts, $replyToken, $sourceId);
                 break;
             case '/help':
             case 'help':
@@ -262,9 +307,16 @@ class LineWebhookController extends Controller
     /** /portfolio [ชื่อ] — ดูพอร์ต (ไม่ระบุ = ลิสต์ให้เลือก / ระบุ = สถิติ + กราฟ) */
     private function cmdPortfolio(array $parts, string $replyToken, ?string $sourceId): void
     {
-        // ไม่ระบุชื่อ → แสดงรายการพอร์ตเป็น quick reply ให้เลือก
+        // ต้องผูกบัญชีก่อน — พอร์ตเป็นข้อมูลรายคน
+        $user = $this->userFromSource($sourceId);
+        if (!$user) {
+            $this->line->reply($replyToken, $this->notLinkedText());
+            return;
+        }
+
+        // ไม่ระบุชื่อ → แสดงรายการพอร์ตเป็น quick reply ให้เลือก (เฉพาะของ user นี้)
         if (count($parts) < 2) {
-            $portfolios = Portfolio::orderBy('name')->get();
+            $portfolios = $user->portfolios()->orderBy('name')->get();
             if ($portfolios->isEmpty()) {
                 $this->line->reply($replyToken, "ยังไม่มีพอร์ต — สร้างได้ที่หน้าเว็บ");
                 return;
@@ -284,10 +336,10 @@ class LineWebhookController extends Controller
             return;
         }
 
-        // ระบุชื่อ → หาพอร์ต (ตรงตัวก่อน แล้ว partial)
+        // ระบุชื่อ → หาพอร์ต (เฉพาะของ user นี้; ตรงตัวก่อน แล้ว partial)
         $name = trim(implode(' ', array_slice($parts, 1)));
-        $portfolio = Portfolio::where('name', $name)->first()
-            ?? Portfolio::where('name', 'like', '%' . $name . '%')->first();
+        $portfolio = $user->portfolios()->where('name', $name)->first()
+            ?? $user->portfolios()->where('name', 'like', '%' . $name . '%')->first();
 
         if (!$portfolio) {
             $this->line->reply($replyToken, "ไม่พบพอร์ต \"{$name}\"\nพิมพ์ /portfolio เพื่อดูรายการ");
@@ -357,15 +409,28 @@ class LineWebhookController extends Controller
         return 'https://quickchart.io/chart?w=500&h=300&c=' . urlencode(json_encode($config));
     }
 
-    /** /list — หุ้นทั้งหมดในระบบ */
-    private function cmdList(string $replyToken): void
+    /** /list — หุ้นที่ผู้ใช้ติดตาม (เฉพาะบัญชีที่ผูก LINE แล้ว) */
+    private function cmdList(string $replyToken, ?string $sourceId): void
     {
-        $symbols = Stock::orderBy('symbol')->pluck('symbol')->toArray();
-        if (empty($symbols)) {
-            $this->line->reply($replyToken, "ยังไม่มีหุ้นในระบบ");
+        $user = $this->userFromSource($sourceId);
+        if (!$user) {
+            $this->line->reply($replyToken, $this->notLinkedText());
             return;
         }
-        $this->line->reply($replyToken, "📋 หุ้นในระบบ:\n" . implode(', ', $symbols));
+
+        $symbols = $user->stocks()->orderBy('symbol')->pluck('symbol')->toArray();
+        if (empty($symbols)) {
+            $this->line->reply($replyToken, "คุณยังไม่ได้ติดตามหุ้นใด — เพิ่มได้ที่หน้าเว็บ");
+            return;
+        }
+        $this->line->reply($replyToken, "📋 หุ้นที่คุณติดตาม:\n" . implode(', ', $symbols));
+    }
+
+    /** ข้อความเตือนให้ผูกบัญชีก่อนใช้คำสั่งที่อิงข้อมูลรายคน */
+    private function notLinkedText(): string
+    {
+        return "🔗 ยังไม่ได้ผูกบัญชี LINE กับระบบ\n"
+            . "ไปที่หน้าโปรไฟล์ในเว็บ → สร้างรหัสผูกบัญชี → พิมพ์ /link รหัส ที่นี่";
     }
 
     /**
@@ -390,7 +455,8 @@ class LineWebhookController extends Controller
             . "/plan SYMBOL เงิน/เดือน ปี — จำลอง DCA\n"
             . "/news SYMBOL — ข่าวล่าสุด\n"
             . "/portfolio — ดูพอร์ต + กราฟสัดส่วน\n"
-            . "/list — ดูหุ้นทั้งหมด\n\n"
+            . "/list — ดูหุ้นที่คุณติดตาม\n"
+            . "/link รหัส — ผูกบัญชี LINE กับเว็บ\n\n"
             . "ตัวอย่าง:\n/ask NVDA\n/plan PTT 5000 10\n/portfolio";
     }
 }

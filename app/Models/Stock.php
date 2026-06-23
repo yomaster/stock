@@ -17,4 +17,10 @@ class Stock extends Model
     {
         return $this->hasMany(AnalysisResult::class);
     }
+
+    /** ผู้ใช้ที่ติดตามหุ้นนี้ (pivot user_stocks) */
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'user_stocks')->withTimestamps();
+    }
 }

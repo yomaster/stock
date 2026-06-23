@@ -19,59 +19,58 @@ class CheckAlerts extends Command
 {
     public function handle(SettingsService $settings, LineService $line): int
     {
-        $priceThreshold = (float) $settings->get('alert.price_threshold', 5);
-        $volMultiplier  = (float) $settings->get('alert.volume_multiplier', 2.5);
         $today = Carbon::now()->toDateString();
 
-        $stocks = Stock::all();
+        // เฉพาะหุ้นที่มีคนติดตาม + เปิดแจ้งเตือน + ผูก LINE แล้ว (ไม่งั้นไม่ต้องดึง quote)
+        $stocks = Stock::whereHas('users', fn ($q) => $this->eligibleUsers($q))->get();
         $alertsSent = 0;
 
         foreach ($stocks as $stock) {
             try {
                 $quote = $this->fetchQuote($stock->symbol);
-                if (!$quote) {
+                if (!$quote || $quote['prevClose'] <= 0) {
                     continue;
                 }
 
-                $price = $quote['price'];
+                $price     = $quote['price'];
                 $prevClose = $quote['prevClose'];
-                $volume = $quote['volume'];
-
-                if ($prevClose <= 0) {
-                    continue;
-                }
-
+                $volume    = $quote['volume'];
                 $changePct = (($price - $prevClose) / $prevClose) * 100;
+                $avgVol    = $this->avgVolume($stock->id);
 
-                // ── แจ้งเตือนราคา (ครั้งเดียวต่อวันต่อหุ้น) ──
-                if (abs($changePct) >= $priceThreshold) {
-                    $key = "alert_price:{$stock->symbol}:{$today}";
-                    if (!Cache::has($key)) {
-                        $dir = $changePct >= 0 ? '🟢 พุ่งขึ้น' : '🔴 ร่วงลง';
-                        $msg = "🚨 แจ้งเตือนราคา {$stock->symbol}\n"
-                            . "{$dir} " . number_format(abs($changePct), 2) . "% วันนี้\n"
-                            . "ราคา: " . number_format($price, 2) . " {$stock->currency}"
-                            . " (จาก " . number_format($prevClose, 2) . ")";
-                        $this->dispatchAlert($line, $msg, $key);
-                        $alertsSent++;
+                // ผู้ติดตามหุ้นนี้ที่เปิดแจ้งเตือน + ผูก LINE — แต่ละคนมีเกณฑ์ของตัวเอง
+                $users = $stock->users()->where(fn ($q) => $this->eligibleUsers($q))->get();
+
+                foreach ($users as $user) {
+                    // ── แจ้งเตือนราคา (ตาม threshold ราย user, ครั้งเดียว/วัน/หุ้น/คน) ──
+                    if (abs($changePct) >= (float) $user->alert_price_threshold) {
+                        $key = "alert_price:{$user->id}:{$stock->symbol}:{$today}";
+                        if (!Cache::has($key)) {
+                            $dir = $changePct >= 0 ? '🟢 พุ่งขึ้น' : '🔴 ร่วงลง';
+                            $msg = "🚨 แจ้งเตือนราคา {$stock->symbol}\n"
+                                . "{$dir} " . number_format(abs($changePct), 2) . "% วันนี้\n"
+                                . "ราคา: " . number_format($price, 2) . " {$stock->currency}"
+                                . " (จาก " . number_format($prevClose, 2) . ")";
+                            $this->dispatchAlert($line, $user, $msg, $key);
+                            $alertsSent++;
+                        }
+                    }
+
+                    // ── แจ้งเตือน Volume ผิดปกติ (ตาม multiplier ราย user) ──
+                    $mult = (float) $user->alert_volume_multiplier;
+                    if ($avgVol > 0 && $volume > 0 && $mult > 0 && $volume >= $avgVol * $mult) {
+                        $key = "alert_vol:{$user->id}:{$stock->symbol}:{$today}";
+                        if (!Cache::has($key)) {
+                            $times = round($volume / $avgVol, 1);
+                            $msg = "📊 แจ้งเตือน Volume {$stock->symbol}\n"
+                                . "วอลุ่มวันนี้สูงผิดปกติ {$times} เท่าของค่าเฉลี่ย\n"
+                                . "ราคาปัจจุบัน: " . number_format($price, 2) . " {$stock->currency}"
+                                . " (" . ($changePct >= 0 ? '+' : '') . number_format($changePct, 2) . "%)";
+                            $this->dispatchAlert($line, $user, $msg, $key);
+                            $alertsSent++;
+                        }
                     }
                 }
-
-                // ── แจ้งเตือน Volume ผิดปกติ ──
-                $avgVol = $this->avgVolume($stock->id);
-                if ($avgVol > 0 && $volume > 0 && $volume >= $avgVol * $volMultiplier) {
-                    $key = "alert_vol:{$stock->symbol}:{$today}";
-                    if (!Cache::has($key)) {
-                        $times = round($volume / $avgVol, 1);
-                        $msg = "📊 แจ้งเตือน Volume {$stock->symbol}\n"
-                            . "วอลุ่มวันนี้สูงผิดปกติ {$times} เท่าของค่าเฉลี่ย\n"
-                            . "ราคาปัจจุบัน: " . number_format($price, 2) . " {$stock->currency}"
-                            . " (" . ($changePct >= 0 ? '+' : '') . number_format($changePct, 2) . "%)";
-                        $this->dispatchAlert($line, $msg, $key);
-                        $alertsSent++;
-                    }
-                }
-
             } catch (\Throwable $e) {
                 $this->error("  {$stock->symbol}: " . $e->getMessage());
             }
@@ -81,14 +80,20 @@ class CheckAlerts extends Command
         return self::SUCCESS;
     }
 
-    private function dispatchAlert(LineService $line, string $msg, string $cacheKey): void
+    /** เงื่อนไข user ที่ควรรับแจ้งเตือน — เปิด alert + ผูก LINE แล้ว (ใช้ได้ทั้ง whereHas และ relation query) */
+    private function eligibleUsers($query)
+    {
+        return $query->where('alert_enabled', true)->whereNotNull('line_user_id');
+    }
+
+    private function dispatchAlert(LineService $line, \App\Models\User $user, string $msg, string $cacheKey): void
     {
         if ($this->option('dry')) {
-            $this->line($msg);
+            $this->line("[{$user->email}] {$msg}");
             $this->line('---');
             return;
         }
-        $line->pushToDefault($msg);
+        $line->pushToUser($user, $msg);
         // กันส่งซ้ำในวันเดียวกัน — หมดอายุสิ้นวัน
         Cache::put($cacheKey, true, Carbon::now()->endOfDay());
     }
