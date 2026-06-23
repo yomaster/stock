@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesUserStocks;
+use App\Models\AnalysisResult;
 use App\Models\News;
-use App\Models\StockAnalysis;
 use App\Models\StockPrice;
 
 class DashboardController extends Controller
@@ -21,29 +21,15 @@ class DashboardController extends Controller
         $priceCount = StockPrice::whereIn('stock_id', $stockIds)->count();
         $newsCount  = $this->newsForSymbols($symbols)->count();
 
-        // ผลวิเคราะห์ AI ล่าสุดของ user คนนี้ (แยกรายคน จากตาราง stock_analyses)
-        // ดึงล่าสุดต่อหุ้น (unique stock_id) แล้วเอา 5 ตัวที่วิเคราะห์ล่าสุด
-        $latestAnalyses = StockAnalysis::with('stock')
-            ->where('user_id', auth()->id())
+        // บทประเมินหุ้นจาก AI ล่าสุด (Rating/ความเสี่ยง/สรุป) จากตาราง analysis_results
+        // = ตัวเดียวกับ panel "ผลวิเคราะห์ AI" หน้า stock — กรองเฉพาะหุ้นที่ user ติดตาม
+        // (ไม่มีผล fallback ค้างแล้ว เพราะ projectFutureAI บันทึกเฉพาะตอน AI สำเร็จจริง)
+        $latestAnalyses = AnalysisResult::with('stock')
             ->whereIn('stock_id', $stockIds)
-            ->orderByDesc('created_at')
+            ->orderByDesc('date')->orderByDesc('id')
             ->get()
-            ->unique('stock_id')
+            ->unique('stock_id') // ล่าสุดต่อหุ้น (กันโชว์หุ้นเดียวซ้ำหลายวัน)
             ->take(5)
-            ->map(function ($a) {
-                $r = $a->result ?? [];
-                $baseCagr = $r['projections']['base']['cagr'] ?? null;
-                // rating: ใช้ที่เก็บไว้ ถ้าไม่มีก็ derive จาก base CAGR (รองรับ row เก่าที่ไม่มี rating)
-                $rating = $r['rating'] ?? ($baseCagr === null ? '—'
-                    : ($baseCagr > 10 ? 'Buy' : ($baseCagr > 4 ? 'Hold' : 'Avoid')));
-                return (object) [
-                    'stock_id'   => $a->stock_id,
-                    'stock'      => $a->stock,
-                    'rating'     => $rating,
-                    'risk_score' => $r['risk_score'] ?? '-',
-                    'summary'    => $r['summary'] ?? '',
-                ];
-            })
             ->values();
 
         // หุ้นทั้งหมดพร้อมราคาล่าสุด
