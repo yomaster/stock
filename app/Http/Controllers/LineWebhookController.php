@@ -40,6 +40,7 @@ class LineWebhookController extends Controller
 
             // แอดเพื่อน/ปลดบล็อก OA → ส่งข้อความต้อนรับ + วิธีใช้ (reply token ฟรี)
             if ($type === 'follow') {
+                \Illuminate\Support\Facades\Log::info('LINE follow event', ['source' => $sourceId]);
                 if ($replyToken = $event['replyToken'] ?? null) {
                     $this->line->reply($replyToken, $this->welcomeText());
                 }

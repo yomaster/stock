@@ -78,7 +78,8 @@
             @else
                 <div class="flex flex-col sm:flex-row gap-5 items-start">
                     <div class="text-center shrink-0">
-                        <img src="{{ asset('assets/images/lineoa/272awqmv.png') }}" alt="LINE OA QR"
+                        {{-- cache-bust ด้วย filemtime — เปลี่ยนรูป (ชื่อเดิม) แล้ว browser โหลดใหม่อัตโนมัติ --}}
+                        <img src="{{ asset('assets/images/lineoa/272awqmv.png') }}?v={{ @filemtime(public_path('assets/images/lineoa/272awqmv.png')) ?: '1' }}" alt="LINE OA QR"
                             class="w-32 h-32 rounded-xl border border-slate-200 bg-white p-1">
                         <p class="text-xs text-slate-400 mt-1.5">สแกนเพื่อแอด LINE OA</p>
                     </div>
