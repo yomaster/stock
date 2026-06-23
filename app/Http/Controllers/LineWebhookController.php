@@ -36,8 +36,17 @@ class LineWebhookController extends Controller
         foreach ($events as $event) {
             // source id (user/group/room) ใช้ push กลับ + จับคู่กับบัญชีผู้ใช้ผ่าน line_user_id
             $sourceId = $this->extractSourceId($event);
+            $type     = $event['type'] ?? '';
 
-            if (($event['type'] ?? '') === 'message' && ($event['message']['type'] ?? '') === 'text') {
+            // แอดเพื่อน/ปลดบล็อก OA → ส่งข้อความต้อนรับ + วิธีใช้ (reply token ฟรี)
+            if ($type === 'follow') {
+                if ($replyToken = $event['replyToken'] ?? null) {
+                    $this->line->reply($replyToken, $this->welcomeText());
+                }
+                continue;
+            }
+
+            if ($type === 'message' && ($event['message']['type'] ?? '') === 'text') {
                 $text       = trim($event['message']['text'] ?? '');
                 $replyToken = $event['replyToken'] ?? null;
                 $this->handleCommand($text, $replyToken, $sourceId);
@@ -353,10 +362,10 @@ class LineWebhookController extends Controller
             return;
         }
 
-        // คำนวณ + ส่งกราฟใช้เวลา (ดึงราคาสด) → loading + defer + push
+        // คำนวณ + ส่งกราฟใช้เวลา (ดึงราคาสด) → loading + defer + reply (ฟรี ไม่หักโควตา)
         $this->line->startLoading($sourceId, 30);
         $portfolioId = $portfolio->id;
-        defer(function () use ($sourceId, $portfolioId) {
+        defer(function () use ($replyToken, $portfolioId) {
             $portfolio = Portfolio::find($portfolioId);
             if (!$portfolio) {
                 return;
@@ -365,7 +374,7 @@ class LineWebhookController extends Controller
             $line = app(LineService::class);
 
             if (empty($data['holdings'])) {
-                $line->push($sourceId, "💼 {$portfolio->name}\nพอร์ตนี้ยังว่าง — เพิ่มหุ้นที่หน้าเว็บก่อน");
+                $line->reply($replyToken, "💼 {$portfolio->name}\nพอร์ตนี้ยังว่าง — เพิ่มหุ้นที่หน้าเว็บก่อน");
                 return;
             }
 
@@ -385,7 +394,7 @@ class LineWebhookController extends Controller
 
             $chartUrl = $this->allocationChartUrl($alloc);
 
-            $line->push($sourceId, [
+            $line->reply($replyToken, [
                 ['type' => 'text', 'text' => trim($txt)],
                 ['type' => 'image', 'originalContentUrl' => $chartUrl, 'previewImageUrl' => $chartUrl],
             ]);
@@ -460,5 +469,23 @@ class LineWebhookController extends Controller
             . "/list — ดูหุ้นที่คุณติดตาม\n"
             . "/link รหัส — ผูกบัญชี LINE กับเว็บ\n\n"
             . "ตัวอย่าง:\n/ask NVDA\n/plan PTT 5000 10\n/portfolio";
+    }
+
+    /** ข้อความต้อนรับ — ส่งตอน user แอด LINE OA ครั้งแรก (follow event) */
+    private function welcomeText(): string
+    {
+        return "🎉 ยินดีต้อนรับสู่ StockAI!\n"
+            . "ผู้ช่วยวิเคราะห์หุ้นด้วย AI 🤖\n"
+            . "━━━━━━━━━━━━━\n"
+            . "📊 คำสั่งที่ใช้ได้:\n\n"
+            . "🔹 /ask SYMBOL\n   วิเคราะห์หุ้นด้วย AI (Rating/ความเสี่ยง)\n   เช่น  /ask NVDA  หรือ  /ask PTT.BK\n\n"
+            . "🔹 /plan SYMBOL เงิน/เดือน ปี\n   จำลอง DCA ย้อนหลังว่าได้กำไรเท่าไหร่\n   เช่น  /plan NVDA 5000 10\n\n"
+            . "🔹 /news SYMBOL\n   ข่าวล่าสุดของหุ้น\n   เช่น  /news TSM\n\n"
+            . "🔹 /list\n   หุ้นที่คุณติดตามทั้งหมด\n\n"
+            . "🔹 /portfolio\n   สรุปพอร์ต + กราฟสัดส่วน\n\n"
+            . "━━━━━━━━━━━━━\n"
+            . "🔗 อยากใช้ /list /portfolio + รับแจ้งเตือนราคา/สรุปเช้า?\n"
+            . "ผูกบัญชีก่อน: เข้าหน้าโปรไฟล์ในเว็บ → สร้างรหัส → พิมพ์  /link รหัส  ที่นี่\n\n"
+            . "💡 พิมพ์ /help เพื่อดูคำสั่งอีกครั้ง";
     }
 }
