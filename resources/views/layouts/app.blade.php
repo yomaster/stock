@@ -32,8 +32,8 @@
                     <span class="font-bold text-slate-800 text-base tracking-tight">Stock<span class="text-indigo-600">AI</span></span>
                 </a>
 
-                {{-- Nav Links --}}
-                <nav class="flex items-center gap-1">
+                {{-- Desktop Nav (ซ่อนบนจอเล็ก — ใช้แฮมเบอร์เกอร์แทน) --}}
+                <nav class="hidden md:flex items-center gap-1">
                     @php
                         // 'perm' = menu group ที่ต้องมีสิทธิ์ถึงจะเห็นเมนู (gate ด้วย canAccessMenuGroup)
                         $navItems = [
@@ -63,8 +63,9 @@
                     @endforeach
                 </nav>
 
-                {{-- User menu (vanilla JS toggle — ดู script ท้ายไฟล์) --}}
+                {{-- กลุ่มขวา: user menu + ปุ่มแฮมเบอร์เกอร์ --}}
                 @auth
+                <div class="flex items-center gap-1">
                 <div class="relative" id="userMenu">
                     <button type="button" data-user-menu-toggle
                         class="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg hover:bg-slate-100 transition-all">
@@ -95,9 +96,33 @@
                             </button>
                         </form>
                     </div>
-                </div>
+                </div>{{-- /#userMenu --}}
+
+                    {{-- ปุ่มแฮมเบอร์เกอร์ (จอเล็กเท่านั้น) --}}
+                    <button type="button" id="mobileNavToggle"
+                        class="md:hidden p-2 -mr-1 rounded-lg text-slate-600 hover:bg-slate-100 transition" aria-label="เปิดเมนู">
+                        <svg id="mobileNavIconOpen" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                        <svg id="mobileNavIconClose" class="hidden w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>{{-- /กลุ่มขวา --}}
                 @endauth
             </div>
+
+            {{-- Mobile Nav (dropdown จากแฮมเบอร์เกอร์ — ซ่อนบนจอใหญ่) --}}
+            @auth
+            <nav id="mobileNav" class="hidden md:hidden pb-3 pt-1 space-y-1 border-t border-slate-200/60">
+                @foreach($navItems as $item)
+                    @continue($user && !$user->canAccessMenuGroup($item['perm']))
+                    @php $mActive = request()->routeIs($item['route']) @endphp
+                    <a href="{{ route($item['route']) }}"
+                       class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                              {{ $mActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' }}">
+                        <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/></svg>
+                        {{ $item['label'] }}
+                    </a>
+                @endforeach
+            </nav>
+            @endauth
         </div>
     </header>
 
@@ -132,6 +157,27 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('click', function (e) {
         if (!menu.contains(e.target)) panel.classList.add('hidden');
     });
+
+    // Mobile nav (แฮมเบอร์เกอร์) — สลับ dropdown + ไอคอน ☰ ↔ ✕
+    const mobBtn = document.getElementById('mobileNavToggle');
+    const mobNav = document.getElementById('mobileNav');
+    if (mobBtn && mobNav) {
+        const iconOpen  = document.getElementById('mobileNavIconOpen');
+        const iconClose = document.getElementById('mobileNavIconClose');
+        mobBtn.addEventListener('click', function () {
+            const open = mobNav.classList.toggle('hidden') === false;
+            iconOpen.classList.toggle('hidden', open);
+            iconClose.classList.toggle('hidden', !open);
+        });
+        // ปิดเมนูอัตโนมัติเมื่อขยายจอเป็นขนาด desktop (md = 768px)
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 768 && !mobNav.classList.contains('hidden')) {
+                mobNav.classList.add('hidden');
+                iconOpen.classList.remove('hidden');
+                iconClose.classList.add('hidden');
+            }
+        });
+    }
 });
 </script>
 
