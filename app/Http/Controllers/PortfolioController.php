@@ -243,7 +243,8 @@ class PortfolioController extends Controller
             . "- เน้นคำสำคัญด้วย **ตัวหนา** ได้\n"
             . "- ห้ามเขียนเป็นพารากราฟยาวๆ ติดกัน";
 
-        $result = $gemini->generateText($prompt, ['maxOutputTokens' => 1024]);
+        // 4096: เผื่อ thinking model ใช้ token คิดก่อน + markdown ผลลัพธ์ (1024 เดิมน้อยไป → text ว่าง)
+        $result = $gemini->generateText($prompt, ['maxOutputTokens' => 4096]);
 
         if (!$result) {
             $msg = $gemini->lastStatus === 429

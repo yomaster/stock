@@ -224,7 +224,7 @@ class InvestmentService
         $gemini = app(GeminiService::class);
         $aiResponse = $gemini->generateText($prompt);
 
-        $cleanJson = trim($aiResponse);
+        $cleanJson = trim((string) $aiResponse); // guard null (PHP 8.4 deprecation)
         if (str_starts_with($cleanJson, '```json')) {
             $cleanJson = substr($cleanJson, 7);
         }
@@ -238,7 +238,9 @@ class InvestmentService
 
         $aiData = json_decode($cleanJson, true);
 
-        if (!$aiData || !isset($aiData['base_cagr'])) {
+        // ai_ok = AI ตอบกลับสำเร็จจริง (ไม่ใช่ fallback) — ใช้ตัดสินใจว่าจะ cache ผลไหม
+        $aiOk = ($aiData && isset($aiData['base_cagr']));
+        if (!$aiOk) {
             $aiData = [
                 'bull_cagr' => 10.0,
                 'base_cagr' => 5.0,
@@ -293,6 +295,7 @@ class InvestmentService
 
         return [
             'success' => true,
+            'ai_ok' => $aiOk,   // false = ใช้ค่า fallback (AI ล้มเหลว) → ไม่ควร cache
             'symbol' => $symbol,
             'name' => $stock->name,
             'currency' => $displayCurrencyLabel,

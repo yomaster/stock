@@ -108,7 +108,14 @@ class StockController extends Controller
     public function analyzeForm(Stock $stock)
     {
         $this->guardTracksStock($stock);
-        return view('stocks.analyze', compact('stock'));
+
+        // ดึงผลวิเคราะห์ล่าสุดของ user คนนี้กับหุ้นตัวนี้ (ถ้ามี) — แสดงเลยโดยไม่ต้องเรียก AI ใหม่
+        $latest = \App\Models\StockAnalysis::where('user_id', auth()->id())
+            ->where('stock_id', $stock->id)
+            ->latest()
+            ->first();
+
+        return view('stocks.analyze', compact('stock', 'latest'));
     }
 
     public function analyzeRun(Request $request, Stock $stock, InvestmentService $service)
@@ -136,6 +143,16 @@ class StockController extends Controller
 
         // คำนวณ data สำหรับกราฟการเติบโต (ทำฝั่ง server เพื่อส่งให้ JS วาด)
         $chartData = $result['success'] ? $this->buildProjectionChartData($result) : null;
+
+        // เก็บผลล่าสุดไว้แสดงครั้งหน้า — เฉพาะที่ AI สำเร็จจริง (ไม่ cache ผล fallback)
+        if (($result['ai_ok'] ?? false)) {
+            \App\Models\StockAnalysis::create([
+                'user_id'  => $request->user()->id,
+                'stock_id' => $stock->id,
+                'result'   => $result,
+                'chart'    => $chartData,
+            ]);
+        }
 
         // AJAX (fetch) → ตอบกลับเป็น JSON พร้อม HTML partial + chart data
         if ($request->wantsJson()) {

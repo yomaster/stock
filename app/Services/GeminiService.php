@@ -63,7 +63,9 @@ class GeminiService
                 ],
                 'generationConfig' => array_merge([
                     'temperature' => 0.2, // ตั้งอุณหภูมิต่ำเพื่อให้ได้ข้อมูลที่วิเคราะห์อย่างมีเหตุผลและไม่จินตนาการมากเกินไป
-                    'maxOutputTokens' => 2048,
+                    // ⚠️ thinking model (เช่น gemini-2.5-pro) ใช้ token ไปกับการ "คิด" ด้วย — ตั้งต่ำไปจะโดน
+                    //    truncate (finishReason=MAX_TOKENS) แล้วคืน text ว่าง → ต้องเผื่อ budget ให้พอ
+                    'maxOutputTokens' => 4096,
                 ], $config)
             ]);
 
@@ -75,8 +77,24 @@ class GeminiService
             }
 
             $data = $response->json();
-            
-            return $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            $candidate = $data['candidates'][0] ?? null;
+
+            // รวม text จากทุก part (thinking model อาจส่งหลาย part) ข้าม part ที่เป็น thought
+            $text = '';
+            foreach (($candidate['content']['parts'] ?? []) as $part) {
+                if (isset($part['text']) && empty($part['thought'])) {
+                    $text .= $part['text'];
+                }
+            }
+
+            if ($text === '') {
+                // text ว่าง = มักโดน truncate (thinking model กิน token หมด) — log สาเหตุไว้ดีบัก
+                $finish = $candidate['finishReason'] ?? 'unknown';
+                Log::warning("Gemini empty text (finishReason={$finish}, model={$this->model}): " . substr($response->body(), 0, 800));
+                return null;
+            }
+
+            return $text;
 
         } catch (\Exception $e) {
             Log::error('Gemini Service Error: ' . $e->getMessage());

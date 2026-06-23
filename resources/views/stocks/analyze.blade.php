@@ -97,11 +97,20 @@
 
         {{-- Result (AJAX จะเติม HTML ตรงนี้) --}}
         <div id="analyzeResult">
-            <div class="glass-card flex flex-col items-center justify-center py-20 text-center">
-                <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4 text-3xl">🤖</div>
-                <p class="text-slate-500 font-medium">กรอกข้อมูลแล้วกด "วิเคราะห์ด้วย AI"</p>
-                <p class="text-slate-400 text-sm mt-1">ระบบจะใช้ Gemini AI วิเคราะห์แนวโน้มและคาดการณ์ผลตอบแทน</p>
-            </div>
+            @if(!empty($latest))
+                {{-- ผลวิเคราะห์ล่าสุดที่เก็บไว้ — แสดงเลยโดยไม่เรียก AI ใหม่ (ประหยัด token) --}}
+                <div class="mb-3 flex items-center gap-2 text-xs">
+                    <span class="bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full font-medium">📌 ผลวิเคราะห์ล่าสุด: {{ $latest->created_at->format('d/m/Y H:i') }}</span>
+                    <span class="text-slate-400">กดปุ่ม "วิเคราะห์ด้วย AI" เพื่อวิเคราะห์ใหม่</span>
+                </div>
+                @include('stocks._analyze_result', ['result' => $latest->result])
+            @else
+                <div class="glass-card flex flex-col items-center justify-center py-20 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4 text-3xl">🤖</div>
+                    <p class="text-slate-500 font-medium">กรอกข้อมูลแล้วกด "วิเคราะห์ด้วย AI"</p>
+                    <p class="text-slate-400 text-sm mt-1">ระบบจะใช้ Gemini AI วิเคราะห์แนวโน้มและคาดการณ์ผลตอบแทน</p>
+                </div>
+            @endif
         </div>
     </div>
 </div>
@@ -166,6 +175,11 @@ function renderProjectionChart(d) {
 
 document.addEventListener('DOMContentLoaded', function () {
     toggleExRate();
+
+    // วาดกราฟของผลวิเคราะห์ล่าสุดที่เก็บไว้ (ถ้ามี)
+    @if(!empty($latest) && !empty($latest->chart))
+    renderProjectionChart(@json($latest->chart));
+    @endif
 
     const form    = document.getElementById('analyzeForm');
     const btn     = document.getElementById('analyzeBtn');
