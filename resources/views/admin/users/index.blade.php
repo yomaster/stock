@@ -21,7 +21,7 @@
             <tr>
                 <th class="px-5 py-3 font-medium">ผู้ใช้</th>
                 <th class="px-5 py-3 font-medium">บทบาท</th>
-                <th class="px-5 py-3 font-medium">LINE</th>
+                <th class="px-5 py-3 font-medium">บอทแชต</th>
                 <th class="px-5 py-3 font-medium">สถานะ</th>
                 <th class="px-5 py-3 font-medium text-right">จัดการ</th>
             </tr>
@@ -48,8 +48,8 @@
                     @endif
                 </td>
                 <td class="px-5 py-3">
-                    @if($u->line_user_id)
-                        <span class="text-xs text-emerald-600">● ผูกแล้ว</span>
+                    @if($u->messaging_chat_id)
+                        <span class="text-xs text-emerald-600">● ผูกแล้ว ({{ $u->messaging_provider === 'telegram' ? 'Telegram' : 'LINE' }})</span>
                     @else
                         <span class="text-xs text-slate-400">○ ยังไม่ผูก</span>
                     @endif

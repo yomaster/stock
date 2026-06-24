@@ -6,7 +6,7 @@
 
 <div class="mb-8">
     <h1 class="text-2xl font-bold text-slate-900">👤 โปรไฟล์ของฉัน</h1>
-    <p class="text-slate-500 text-sm mt-1">จัดการข้อมูลส่วนตัว ผูกบัญชี LINE และตั้งค่าการแจ้งเตือน</p>
+    <p class="text-slate-500 text-sm mt-1">จัดการข้อมูลส่วนตัว ผูกบัญชี {{ $provider === 'telegram' ? 'Telegram' : 'LINE' }} และตั้งค่าการแจ้งเตือน</p>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
