@@ -22,10 +22,12 @@ class SettingsController extends Controller
         }
 
         $groupLabels = [
-            'gemini'   => ['title' => 'Gemini AI', 'icon' => '🤖'],
-            'line'     => ['title' => 'LINE Messaging API', 'icon' => '💬'],
-            'schedule' => ['title' => 'ตารางเวลาส่งสรุป', 'icon' => '⏰'],
-            'general'  => ['title' => 'ทั่วไป', 'icon' => '⚙️'],
+            'gemini'    => ['title' => 'Gemini AI', 'icon' => '🤖'],
+            'messaging' => ['title' => 'ช่องทางส่งข้อความ', 'icon' => '📨'],
+            'line'      => ['title' => 'LINE Messaging API', 'icon' => '💬'],
+            'telegram'  => ['title' => 'Telegram Bot API', 'icon' => '✈️'],
+            'schedule'  => ['title' => 'ตารางเวลาส่งสรุป', 'icon' => '⏰'],
+            'general'   => ['title' => 'ทั่วไป', 'icon' => '⚙️'],
         ];
 
         // Webhook URL สำหรับนำไปตั้งใน LINE Developers Console

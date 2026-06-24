@@ -2,17 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\SettingsService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, SettingsService $settings)
     {
-        return view('profile.index', ['user' => $request->user()]);
+        return view('profile.index', [
+            'user'        => $request->user(),
+            'provider'    => $settings->get('messaging.provider', 'line'),
+            'telegramBot' => $settings->get('telegram.bot_username'),
+        ]);
     }
 
     /** แก้ชื่อ/ชื่อเล่น/อีเมล */
@@ -46,8 +50,8 @@ class ProfileController extends Controller
     {
         $code = strtoupper(Str::random(6));
         $request->user()->forceFill([
-            'line_link_code'            => $code,
-            'line_link_code_expires_at' => now()->addMinutes(10),
+            'messaging_link_code'            => $code,
+            'messaging_link_code_expires_at' => now()->addMinutes(10),
         ])->save();
 
         return back()->with('success', "รหัสผูกบัญชี: {$code} — พิมพ์ /link {$code} ใน LINE ภายใน 10 นาที");
@@ -57,12 +61,13 @@ class ProfileController extends Controller
     public function unlinkLine(Request $request)
     {
         $request->user()->forceFill([
-            'line_user_id'              => null,
-            'line_link_code'            => null,
-            'line_link_code_expires_at' => null,
+            'messaging_chat_id'              => null,
+            'messaging_provider'             => null,
+            'messaging_link_code'            => null,
+            'messaging_link_code_expires_at' => null,
         ])->save();
 
-        return back()->with('success', 'ยกเลิกการผูก LINE แล้ว');
+        return back()->with('success', 'ยกเลิกการผูกบัญชีแล้ว');
     }
 
     /** ตั้งค่าการแจ้งเตือนรายคน */

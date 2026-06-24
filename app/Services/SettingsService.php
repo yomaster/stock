@@ -44,6 +44,14 @@ class SettingsService
             'help' => 'ใช้กับสรุปเช้า — Flash Lite เพียงพอ ประหยัด token และ RPM สูงกว่า',
         ],
 
+        // ── Messaging Provider (เลือกใช้ LINE หรือ Telegram ทีละตัว) ──
+        'messaging.provider' => [
+            'group' => 'messaging', 'label' => 'ช่องทางส่งข้อความ (Provider)', 'secret' => false,
+            'type' => 'select', 'default' => 'line',
+            'options' => ['line' => 'LINE Messaging API', 'telegram' => 'Telegram Bot API'],
+            'help' => 'เลือกใช้ทีละตัว — คำสั่งบอท + สรุป + แจ้งเตือน จะส่งผ่าน provider ที่เลือก (สลับแล้ว user ต้อง /link ใหม่)',
+        ],
+
         // ── LINE Messaging API ──
         'line.channel_access_token' => [
             'group' => 'line', 'label' => 'Channel Access Token', 'secret' => true,
@@ -52,6 +60,20 @@ class SettingsService
         'line.channel_secret' => [
             'group' => 'line', 'label' => 'Channel Secret', 'secret' => true,
             'help' => 'ใช้ตรวจลายเซ็น webhook (X-Line-Signature)',
+        ],
+
+        // ── Telegram Bot API ──
+        'telegram.bot_token' => [
+            'group' => 'telegram', 'label' => 'Telegram Bot Token', 'secret' => true,
+            'help' => 'จาก @BotFather → /newbot → token (รูปแบบ 123456:ABC...)',
+        ],
+        'telegram.bot_username' => [
+            'group' => 'telegram', 'label' => 'Bot Username (ไม่ต้องมี @)', 'secret' => false,
+            'help' => 'ชื่อบอท เช่น mystock_bot — ใช้สร้างลิงก์ t.me/<username> ในหน้าโปรไฟล์',
+        ],
+        'telegram.webhook_secret' => [
+            'group' => 'telegram', 'label' => 'Webhook Secret Token (ออปชัน)', 'secret' => true,
+            'help' => 'สุ่มสตริงไว้ตรวจ webhook — ใส่ค่าเดียวกันตอน setWebhook (secret_token)',
         ],
 
         // ── ตารางเวลาส่งสรุป ──

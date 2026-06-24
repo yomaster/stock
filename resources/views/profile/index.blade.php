@@ -61,47 +61,68 @@
     {{-- ── LINE + แจ้งเตือน ── --}}
     <div class="space-y-6 self-start">
 
-        {{-- LINE binding --}}
-        <div class="glass-card p-6">
-            <h2 class="font-semibold text-slate-800 mb-5 flex items-center gap-2">💬 การแจ้งเตือนผ่าน LINE</h2>
+        @php
+            $providerLabel = $provider === 'telegram' ? 'Telegram' : 'LINE';
+            $bound = $user->messaging_chat_id && $user->messaging_provider === $provider;
+            $hasCode = $user->messaging_link_code && $user->messaging_link_code_expires_at && $user->messaging_link_code_expires_at->isFuture();
+        @endphp
 
-            @if($user->line_user_id)
+        {{-- Messaging binding (ตาม provider ที่ admin เลือก) --}}
+        <div class="glass-card p-6">
+            <h2 class="font-semibold text-slate-800 mb-5 flex items-center gap-2">💬 การแจ้งเตือนผ่าน {{ $providerLabel }}</h2>
+
+            @if($bound)
                 <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3 mb-4">
                     <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                    ผูกบัญชี LINE เรียบร้อยแล้ว — คุณจะได้รับแจ้งเตือนราคาและสรุปเช้า
+                    ผูกบัญชี {{ $providerLabel }} เรียบร้อยแล้ว — คุณจะได้รับแจ้งเตือนราคาและสรุปเช้า
                 </div>
                 <form method="POST" action="{{ route('profile.line.unlink') }}" class="confirm-delete"
-                    data-title="ยกเลิกการผูก LINE?" data-message="คุณจะไม่ได้รับแจ้งเตือนทาง LINE อีก">
+                    data-title="ยกเลิกการผูก {{ $providerLabel }}?" data-message="คุณจะไม่ได้รับแจ้งเตือนทาง {{ $providerLabel }} อีก">
                     @csrf @method('DELETE')
-                    <button type="submit" class="text-sm text-rose-600 hover:text-rose-700 font-medium">ยกเลิกการผูก LINE</button>
+                    <button type="submit" class="text-sm text-rose-600 hover:text-rose-700 font-medium">ยกเลิกการผูก {{ $providerLabel }}</button>
                 </form>
             @else
+                @if($user->messaging_chat_id && $user->messaging_provider !== $provider)
+                    <div class="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3 mb-4">
+                        บัญชีคุณเคยผูกกับ {{ strtoupper($user->messaging_provider) }} — ตอนนี้ระบบใช้ {{ $providerLabel }} กรุณาผูกใหม่
+                    </div>
+                @endif
                 <div class="flex flex-col sm:flex-row gap-5 items-start">
                     <div class="text-center shrink-0">
-                        {{-- cache-bust ด้วย filemtime — เปลี่ยนรูป (ชื่อเดิม) แล้ว browser โหลดใหม่อัตโนมัติ --}}
-                        <img src="{{ asset('assets/images/lineoa/272awqmv.png') }}?v={{ @filemtime(public_path('assets/images/lineoa/272awqmv.png')) ?: '1' }}" alt="LINE OA QR"
-                            class="w-32 h-32 rounded-xl border border-slate-200 bg-white p-1">
-                        <p class="text-xs text-slate-400 mt-1.5">สแกนเพื่อแอด LINE OA</p>
+                        @if($provider === 'line')
+                            {{-- cache-bust ด้วย filemtime — เปลี่ยนรูป (ชื่อเดิม) แล้ว browser โหลดใหม่อัตโนมัติ --}}
+                            <img src="{{ asset('assets/images/lineoa/272awqmv.png') }}?v={{ @filemtime(public_path('assets/images/lineoa/272awqmv.png')) ?: '1' }}" alt="LINE OA QR"
+                                class="w-32 h-32 rounded-xl border border-slate-200 bg-white p-1">
+                            <p class="text-xs text-slate-400 mt-1.5">สแกนเพื่อแอด LINE OA</p>
+                        @else
+                            <div class="w-32 h-32 rounded-xl border border-slate-200 bg-[#229ED9]/5 flex items-center justify-center text-5xl">✈️</div>
+                            @if($telegramBot)
+                                <a href="https://t.me/{{ $telegramBot }}" target="_blank" rel="noopener"
+                                   class="inline-block mt-2 bg-[#229ED9] hover:brightness-95 text-white text-xs font-medium px-3 py-1.5 rounded-lg">เปิดบอท @{{ $telegramBot }}</a>
+                            @else
+                                <p class="text-xs text-amber-600 mt-1.5">admin ยังไม่ตั้ง bot username</p>
+                            @endif
+                        @endif
                     </div>
                     <div class="text-sm text-slate-600 space-y-2 flex-1">
                         <p class="font-medium text-slate-700">วิธีผูกบัญชี:</p>
                         <ol class="list-decimal list-inside space-y-1 text-slate-500">
-                            <li>สแกน QR เพื่อเพิ่มเพื่อน LINE OA</li>
+                            <li>{{ $provider === 'line' ? 'สแกน QR เพื่อเพิ่มเพื่อน LINE OA' : 'เปิดบอท Telegram แล้วกด Start' }}</li>
                             <li>กดปุ่ม "สร้างรหัสผูกบัญชี" ด้านล่าง</li>
-                            <li>พิมพ์ <code class="bg-slate-100 px-1.5 py-0.5 rounded">/link รหัส</code> ในแชท LINE</li>
+                            <li>พิมพ์ <code class="bg-slate-100 px-1.5 py-0.5 rounded">/link รหัส</code> ในแชท {{ $providerLabel }}</li>
                         </ol>
 
-                        @if($user->line_link_code && $user->line_link_code_expires_at && $user->line_link_code_expires_at->isFuture())
+                        @if($hasCode)
                             <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 mt-2">
-                                <p class="text-xs text-indigo-500">รหัสของคุณ (หมดอายุ {{ $user->line_link_code_expires_at->format('H:i') }}):</p>
-                                <p class="text-2xl font-bold tracking-widest text-indigo-700 font-mono">{{ $user->line_link_code }}</p>
-                                <p class="text-xs text-indigo-500 mt-1">พิมพ์ <code>/link {{ $user->line_link_code }}</code> ในแชท</p>
+                                <p class="text-xs text-indigo-500">รหัสของคุณ (หมดอายุ {{ $user->messaging_link_code_expires_at->format('H:i') }}):</p>
+                                <p class="text-2xl font-bold tracking-widest text-indigo-700 font-mono">{{ $user->messaging_link_code }}</p>
+                                <p class="text-xs text-indigo-500 mt-1">พิมพ์ <code>/link {{ $user->messaging_link_code }}</code> ในแชท</p>
                             </div>
                         @endif
 
                         <form method="POST" action="{{ route('profile.line.code') }}" class="mt-2">
                             @csrf
-                            <button type="submit" class="bg-[#06C755] hover:brightness-95 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">
                                 สร้างรหัสผูกบัญชี
                             </button>
                         </form>

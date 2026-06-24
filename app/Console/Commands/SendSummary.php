@@ -6,7 +6,7 @@ use App\Models\News;
 use App\Models\StockPrice;
 use App\Models\User;
 use App\Services\GeminiService;
-use App\Services\LineService;
+use App\Services\Messaging\MessagingService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
 #[Description('สร้างสรุปก่อนตลาดเปิด (ราคา + ภาพรวม AI จากข่าว) แล้วส่งเข้า LINE รายคน')]
 class SendSummary extends Command
 {
-    public function handle(GeminiService $gemini, LineService $line): int
+    public function handle(GeminiService $gemini, MessagingService $messaging): int
     {
         $market = strtoupper($this->option('market'));
         $marketLabel = match ($market) {
@@ -25,10 +25,12 @@ class SendSummary extends Command
             default => 'ทุกตลาด',
         };
 
-        // ผู้ใช้ที่เปิดรับสรุป + ผูก LINE แล้ว
-        $users = User::where('summary_enabled', true)->whereNotNull('line_user_id')->get();
+        // ผู้ใช้ที่เปิดรับสรุป + ผูกบัญชีกับ provider ที่ active แล้ว
+        $users = User::where('summary_enabled', true)
+            ->where('messaging_provider', $messaging->provider())
+            ->whereNotNull('messaging_chat_id')->get();
         if ($users->isEmpty()) {
-            $this->warn('ไม่มีผู้ใช้ที่เปิดรับสรุป + ผูก LINE');
+            $this->warn("ไม่มีผู้ใช้ที่เปิดรับสรุป + ผูก {$messaging->provider()}");
             return self::SUCCESS;
         }
 
@@ -80,7 +82,7 @@ class SendSummary extends Command
                 continue;
             }
 
-            if ($line->pushToUser($user, $msg)) {
+            if ($messaging->pushToUser($user, $msg)) {
                 $sent++;
             }
         }

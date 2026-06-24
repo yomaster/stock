@@ -13,10 +13,12 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockManageController;
+use App\Http\Controllers\TelegramWebhookController;
 use Illuminate\Support\Facades\Route;
 
-// LINE webhook (ยกเว้น CSRF ใน bootstrap/app.php — ตรวจ signature เองใน controller) — เปิด public
+// Webhook ของ bot (ยกเว้น CSRF ใน bootstrap/app.php — ตรวจ signature/secret เองใน controller) — เปิด public
 Route::post('/webhook/line', [LineWebhookController::class, 'handle'])->name('webhook.line');
+Route::post('/webhook/telegram', [TelegramWebhookController::class, 'handle'])->name('webhook.telegram');
 
 // ───────────────────────── Auth (guest) ─────────────────────────
 Route::middleware('guest')->group(function () {

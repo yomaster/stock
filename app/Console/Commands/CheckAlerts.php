@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Stock;
 use App\Models\StockPrice;
-use App\Services\LineService;
+use App\Services\Messaging\MessagingService;
 use App\Services\SettingsService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -13,15 +13,18 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
-#[Signature('app:check-alerts {--dry : แสดงผลเฉยๆ ไม่ส่ง LINE}')]
-#[Description('ตรวจราคา/วอลุ่มผิดปกติระหว่างวัน แล้วแจ้งเตือนด่วนเข้า LINE')]
+#[Signature('app:check-alerts {--dry : แสดงผลเฉยๆ ไม่ส่งข้อความ}')]
+#[Description('ตรวจราคา/วอลุ่มผิดปกติระหว่างวัน แล้วแจ้งเตือนด่วนผ่าน provider ที่ active')]
 class CheckAlerts extends Command
 {
-    public function handle(SettingsService $settings, LineService $line): int
+    private string $provider = 'line';
+
+    public function handle(SettingsService $settings, MessagingService $messaging): int
     {
+        $this->provider = $messaging->provider();
         $today = Carbon::now()->toDateString();
 
-        // เฉพาะหุ้นที่มีคนติดตาม + เปิดแจ้งเตือน + ผูก LINE แล้ว (ไม่งั้นไม่ต้องดึง quote)
+        // เฉพาะหุ้นที่มีคนติดตาม + เปิดแจ้งเตือน + ผูกบัญชี provider ที่ active แล้ว
         $stocks = Stock::whereHas('users', fn ($q) => $this->eligibleUsers($q))->get();
         $alertsSent = 0;
 
@@ -38,7 +41,7 @@ class CheckAlerts extends Command
                 $changePct = (($price - $prevClose) / $prevClose) * 100;
                 $avgVol    = $this->avgVolume($stock->id);
 
-                // ผู้ติดตามหุ้นนี้ที่เปิดแจ้งเตือน + ผูก LINE — แต่ละคนมีเกณฑ์ของตัวเอง
+                // ผู้ติดตามหุ้นนี้ที่เปิดแจ้งเตือน + ผูกบัญชีแล้ว — แต่ละคนมีเกณฑ์ของตัวเอง
                 $users = $stock->users()->where(fn ($q) => $this->eligibleUsers($q))->get();
 
                 foreach ($users as $user) {
@@ -51,7 +54,7 @@ class CheckAlerts extends Command
                                 . "{$dir} " . number_format(abs($changePct), 2) . "% วันนี้\n"
                                 . "ราคา: " . number_format($price, 2) . " {$stock->currency}"
                                 . " (จาก " . number_format($prevClose, 2) . ")";
-                            $this->dispatchAlert($line, $user, $msg, $key);
+                            $this->dispatchAlert($messaging, $user, $msg, $key);
                             $alertsSent++;
                         }
                     }
@@ -66,7 +69,7 @@ class CheckAlerts extends Command
                                 . "วอลุ่มวันนี้สูงผิดปกติ {$times} เท่าของค่าเฉลี่ย\n"
                                 . "ราคาปัจจุบัน: " . number_format($price, 2) . " {$stock->currency}"
                                 . " (" . ($changePct >= 0 ? '+' : '') . number_format($changePct, 2) . "%)";
-                            $this->dispatchAlert($line, $user, $msg, $key);
+                            $this->dispatchAlert($messaging, $user, $msg, $key);
                             $alertsSent++;
                         }
                     }
@@ -80,20 +83,22 @@ class CheckAlerts extends Command
         return self::SUCCESS;
     }
 
-    /** เงื่อนไข user ที่ควรรับแจ้งเตือน — เปิด alert + ผูก LINE แล้ว (ใช้ได้ทั้ง whereHas และ relation query) */
+    /** เงื่อนไข user ที่ควรรับแจ้งเตือน — เปิด alert + ผูกบัญชี provider ที่ active แล้ว */
     private function eligibleUsers($query)
     {
-        return $query->where('alert_enabled', true)->whereNotNull('line_user_id');
+        return $query->where('alert_enabled', true)
+            ->where('messaging_provider', $this->provider)
+            ->whereNotNull('messaging_chat_id');
     }
 
-    private function dispatchAlert(LineService $line, \App\Models\User $user, string $msg, string $cacheKey): void
+    private function dispatchAlert(MessagingService $messaging, \App\Models\User $user, string $msg, string $cacheKey): void
     {
         if ($this->option('dry')) {
             $this->line("[{$user->email}] {$msg}");
             $this->line('---');
             return;
         }
-        $line->pushToUser($user, $msg);
+        $messaging->pushToUser($user, $msg);
         // กันส่งซ้ำในวันเดียวกัน — หมดอายุสิ้นวัน
         Cache::put($cacheKey, true, Carbon::now()->endOfDay());
     }

@@ -19,25 +19,25 @@ class User extends Authenticatable
     protected $fillable = [
         'name', 'nickname', 'email', 'password',
         'role_id', 'status', 'avatar',
-        'line_user_id', 'line_link_code', 'line_link_code_expires_at',
+        'messaging_provider', 'messaging_chat_id', 'messaging_link_code', 'messaging_link_code_expires_at',
         'alert_enabled', 'alert_price_threshold', 'alert_volume_multiplier', 'summary_enabled',
     ];
 
     protected $hidden = [
-        'password', 'remember_token', 'line_link_code',
+        'password', 'remember_token', 'messaging_link_code',
     ];
 
     protected function casts(): array
     {
         return [
-            'email_verified_at'         => 'datetime',
-            'password'                  => 'hashed',
-            'status'                    => 'boolean',
-            'alert_enabled'             => 'boolean',
-            'summary_enabled'           => 'boolean',
-            'alert_price_threshold'     => 'float',
-            'alert_volume_multiplier'   => 'float',
-            'line_link_code_expires_at' => 'datetime',
+            'email_verified_at'              => 'datetime',
+            'password'                       => 'hashed',
+            'status'                         => 'boolean',
+            'alert_enabled'                  => 'boolean',
+            'summary_enabled'                => 'boolean',
+            'alert_price_threshold'          => 'float',
+            'alert_volume_multiplier'        => 'float',
+            'messaging_link_code_expires_at' => 'datetime',
         ];
     }
 

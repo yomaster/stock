@@ -12,9 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // LINE webhook ไม่มี CSRF token (มาจาก LINE platform) → ยกเว้น แล้วตรวจ signature เอง
+        // webhook ของ bot ไม่มี CSRF token (มาจาก platform) → ยกเว้น แล้วตรวจ signature/secret เอง
         $middleware->validateCsrfTokens(except: [
             'webhook/line',
+            'webhook/telegram',
         ]);
 
         // RBAC: middleware('permission:<menu_group>') → ตรวจสิทธิ์ผ่าน Role
