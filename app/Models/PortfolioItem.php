@@ -13,6 +13,7 @@ class PortfolioItem extends Model
         'purchase_price'  => 'float',
         'invested_amount' => 'float',
         'purchase_date'   => 'date',
+        'executed_at'     => 'datetime',
     ];
 
     public function portfolio()

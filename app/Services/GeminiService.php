@@ -113,6 +113,74 @@ class GeminiService
     }
 
     /**
+     * ส่ง prompt + รูปภาพ (Vision) ให้ Gemini อ่าน — ใช้ OCR/แยกข้อมูลจากภาพ
+     *
+     * @param string $prompt
+     * @param array  $images  [['mime'=>'image/png','data'=>'<base64>'], ...]
+     * @param array  $config
+     * @return string|null
+     */
+    public function generateFromImages(string $prompt, array $images, array $config = []): ?string
+    {
+        if (empty($this->apiKey)) {
+            Log::warning('Gemini API Key is not set.');
+            return null;
+        }
+        if (empty($images)) {
+            return null;
+        }
+
+        $url = $this->baseUrl . $this->model . ':generateContent?key=' . $this->apiKey;
+        $this->lastStatus = null;
+
+        // parts: ข้อความ + รูปภาพแต่ละใบ (inline_data base64)
+        $parts = [['text' => $prompt]];
+        foreach ($images as $img) {
+            $parts[] = ['inline_data' => ['mime_type' => $img['mime'], 'data' => $img['data']]];
+        }
+
+        $generationConfig = array_merge([
+            'temperature'     => 0.1,  // OCR ต้องการความเที่ยง ไม่จินตนาการ
+            'maxOutputTokens' => 8192, // JSON อาจหลายแถว (หลายภาพ)
+        ], $config);
+        if (!str_contains($this->model, 'pro')) {
+            $generationConfig['thinkingConfig'] = ['thinkingBudget' => 0];
+        }
+
+        try {
+            $response = Http::timeout(120)->withHeaders(['Content-Type' => 'application/json'])
+                ->post($url, [
+                    'contents'         => [['parts' => $parts]],
+                    'generationConfig' => $generationConfig,
+                ]);
+
+            $this->lastStatus = $response->status();
+
+            if ($response->failed()) {
+                Log::error('Gemini Vision failed: ' . $response->body());
+                return null;
+            }
+
+            $candidate = $response->json('candidates.0');
+            $text = '';
+            foreach (($candidate['content']['parts'] ?? []) as $part) {
+                if (isset($part['text']) && empty($part['thought'])) {
+                    $text .= $part['text'];
+                }
+            }
+            if ($text === '') {
+                $finish = $candidate['finishReason'] ?? 'unknown';
+                Log::warning("Gemini Vision empty text (finishReason={$finish}, model={$this->model})");
+                return null;
+            }
+            return $text;
+        } catch (\Throwable $e) {
+            Log::error('Gemini Vision error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * เปลี่ยนโมเดลที่ใช้ (เช่น เป็น gemini-1.5-pro หากต้องการประมวลผลซับซ้อนขึ้น)
      */
     public function setModel(string $model)

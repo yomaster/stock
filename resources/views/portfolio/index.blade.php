@@ -169,6 +169,15 @@
                 + เพิ่มเข้าพอร์ต
             </button>
         </form>
+
+        {{-- นำเข้าจากภาพหน้าจอโบรก --}}
+        <div class="mt-4 pt-4 border-t border-slate-100">
+            <button type="button" id="importImageBtn"
+                class="w-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-[0.98]">
+                📷 นำเข้าจากภาพหน้าจอโบรก
+            </button>
+            <p class="text-xs text-slate-400 mt-1.5 text-center">อัปโหลดภาพรายการซื้อ (Dime ฯลฯ) ได้หลายภาพ — AI อ่านให้อัตโนมัติ</p>
+        </div>
     </div>
 
     {{-- รายการถือครอง + chart + AI --}}
@@ -351,6 +360,63 @@
     </div>
 </div>
 
+{{-- Modal นำเข้าจากภาพ --}}
+<div id="importModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div class="glass-card !bg-white w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-5">
+            <h3 class="font-bold text-slate-800">📷 นำเข้าจากภาพหน้าจอโบรก</h3>
+            <button type="button" id="importClose" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition">✕</button>
+        </div>
+
+        {{-- ขั้น 1: อัปโหลด --}}
+        <div id="importStep1">
+            <label class="block border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-300 transition">
+                <input type="file" id="importFiles" accept="image/*" multiple class="hidden">
+                <div class="text-3xl mb-2">🖼️</div>
+                <p class="text-sm font-medium text-slate-600">เลือกภาพรายการซื้อ (เลือกได้หลายภาพ)</p>
+                <p id="importFileCount" class="text-xs text-slate-400 mt-1">รองรับ PNG/JPG สูงสุด 8 ภาพ</p>
+            </label>
+            <button type="button" id="importParseBtn" disabled
+                class="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-xl text-sm transition">
+                🔍 อ่านภาพด้วย AI
+            </button>
+        </div>
+
+        {{-- loading --}}
+        <div id="importLoading" class="hidden flex-col items-center py-10 text-center">
+            <div class="relative w-12 h-12 mb-3">
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+            </div>
+            <p class="text-slate-500 text-sm">AI กำลังอ่านรายการจากภาพ...</p>
+        </div>
+
+        {{-- ขั้น 2: preview --}}
+        <div id="importStep2" class="hidden">
+            <div id="importNewStocks" class="hidden bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-3 mb-4"></div>
+            <p class="text-xs text-slate-500 mb-2">ตรวจสอบ/แก้ไขข้อมูลก่อนบันทึก — ติ๊กรายการที่ต้องการเพิ่ม (รายการซ้ำไม่ถูกติ๊กให้)</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead class="text-slate-400 text-left border-b border-slate-100">
+                        <tr>
+                            <th class="pb-2 pr-2"><input type="checkbox" id="importCheckAll" class="rounded border-slate-300"></th>
+                            <th class="pb-2 pr-2 font-medium">หุ้น</th>
+                            <th class="pb-2 pr-2 font-medium">จำนวนหุ้น</th>
+                            <th class="pb-2 pr-2 font-medium">ราคา</th>
+                            <th class="pb-2 font-medium">วันเวลา</th>
+                        </tr>
+                    </thead>
+                    <tbody id="importRows" class="divide-y divide-slate-50"></tbody>
+                </table>
+            </div>
+            <div class="flex gap-2 pt-4">
+                <button type="button" id="importBackBtn" class="flex-1 border border-slate-200 text-slate-600 font-medium py-2.5 rounded-xl text-sm hover:bg-slate-50 transition">← เลือกภาพใหม่</button>
+                <button type="button" id="importConfirmBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm">บันทึกเข้าพอร์ต</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -476,6 +542,115 @@ document.addEventListener('click', function (e) {
 document.getElementById('editClose')?.addEventListener('click', closeEditModal);
 document.getElementById('editCancel')?.addEventListener('click', closeEditModal);
 document.getElementById('editModal')?.addEventListener('click', e => { if (e.target.id === 'editModal') closeEditModal(); });
+
+// ── นำเข้าจากภาพ (Gemini Vision) ──
+(function () {
+    const modal = document.getElementById('importModal');
+    if (!modal) return;
+    const fileInput  = document.getElementById('importFiles');
+    const fileCount  = document.getElementById('importFileCount');
+    const parseBtn   = document.getElementById('importParseBtn');
+    const step1      = document.getElementById('importStep1');
+    const step2      = document.getElementById('importStep2');
+    const loadingEl  = document.getElementById('importLoading');
+    const rowsEl     = document.getElementById('importRows');
+    const newStocks  = document.getElementById('importNewStocks');
+    const checkAll   = document.getElementById('importCheckAll');
+    const csrf       = document.querySelector('meta[name=csrf-token]').content;
+
+    function showStep(n) {
+        step1.classList.toggle('hidden', n !== 1);
+        step2.classList.toggle('hidden', n !== 2);
+        loadingEl.classList.toggle('hidden', n !== 0);
+        loadingEl.classList.toggle('flex', n === 0);
+    }
+    function openModal()  { modal.classList.remove('hidden'); modal.classList.add('flex'); showStep(1); }
+    function closeModal() { modal.classList.add('hidden'); modal.classList.remove('flex'); fileInput.value = ''; fileCount.textContent = 'รองรับ PNG/JPG สูงสุด 8 ภาพ'; parseBtn.disabled = true; }
+
+    document.getElementById('importImageBtn')?.addEventListener('click', openModal);
+    document.getElementById('importClose').addEventListener('click', closeModal);
+    document.getElementById('importBackBtn').addEventListener('click', () => showStep(1));
+    modal.addEventListener('click', e => { if (e.target.id === 'importModal') closeModal(); });
+
+    fileInput.addEventListener('change', () => {
+        const n = fileInput.files.length;
+        parseBtn.disabled = n === 0;
+        fileCount.textContent = n ? `เลือกแล้ว ${n} ภาพ` : 'รองรับ PNG/JPG สูงสุด 8 ภาพ';
+    });
+
+    parseBtn.addEventListener('click', async () => {
+        if (!fileInput.files.length) return;
+        const fd = new FormData();
+        [...fileInput.files].slice(0, 8).forEach(f => fd.append('images[]', f));
+        showStep(0);
+        try {
+            const res = await fetch('{{ route('portfolio.import.parse') }}', {
+                method: 'POST', headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' }, body: fd,
+            });
+            const data = await res.json();
+            if (!data.success) { window.toast('error', data.message || 'อ่านภาพไม่สำเร็จ'); showStep(1); return; }
+            renderRows(data);
+            showStep(2);
+        } catch (e) { window.toast('error', 'เกิดข้อผิดพลาด: ' + e.message); showStep(1); }
+    });
+
+    function renderRows(data) {
+        if (data.new_stocks?.length) {
+            newStocks.textContent = '➕ เพิ่มหุ้นใหม่เข้าระบบให้แล้ว: ' + data.new_stocks.join(', ');
+            newStocks.classList.remove('hidden');
+        } else { newStocks.classList.add('hidden'); }
+
+        rowsEl.innerHTML = '';
+        if (!data.rows.length) {
+            rowsEl.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-400">ไม่พบรายการซื้อในภาพ</td></tr>';
+            return;
+        }
+        data.rows.forEach(r => {
+            const dup = r.status === 'duplicate', inv = r.status === 'invalid';
+            const tag = dup ? ' <span class="text-amber-500 font-normal">(ซ้ำ)</span>'
+                : inv ? ' <span class="text-red-500 font-normal">(ไม่พบหุ้น)</span>' : '';
+            const tr = document.createElement('tr');
+            tr.className = inv ? 'opacity-50' : '';
+            tr.dataset.stockId = r.stock_id || '';
+            tr.innerHTML = `
+                <td class="py-2 pr-2"><input type="checkbox" class="imp-chk rounded border-slate-300" ${(!dup && !inv) ? 'checked' : ''} ${inv ? 'disabled' : ''}></td>
+                <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${r.symbol}${tag}</td>
+                <td class="py-2 pr-2"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1" ${inv ? 'disabled' : ''}></td>
+                <td class="py-2 pr-2"><input type="number" step="any" value="${r.price}" class="imp-price w-24 border border-slate-200 rounded-lg px-2 py-1" ${inv ? 'disabled' : ''}></td>
+                <td class="py-2"><input type="text" value="${r.datetime || ''}" class="imp-dt w-40 border border-slate-200 rounded-lg px-2 py-1" ${inv ? 'disabled' : ''}></td>`;
+            rowsEl.appendChild(tr);
+        });
+    }
+
+    checkAll?.addEventListener('change', () => {
+        rowsEl.querySelectorAll('.imp-chk:not([disabled])').forEach(c => c.checked = checkAll.checked);
+    });
+
+    document.getElementById('importConfirmBtn').addEventListener('click', async () => {
+        const rows = [];
+        rowsEl.querySelectorAll('tr').forEach(tr => {
+            const chk = tr.querySelector('.imp-chk');
+            if (!chk || !chk.checked) return;
+            rows.push({
+                stock_id: tr.dataset.stockId,
+                shares:   tr.querySelector('.imp-shares').value,
+                price:    tr.querySelector('.imp-price').value,
+                datetime: tr.querySelector('.imp-dt').value,
+            });
+        });
+        if (!rows.length) { window.toast('warning', 'ยังไม่ได้เลือกรายการ'); return; }
+        try {
+            const res = await fetch('{{ route('portfolio.import.confirm') }}', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rows }),
+            });
+            const data = await res.json();
+            if (data.success) { location.reload(); } // flash จาก server จะโชว์ toast หลัง reload
+            else { window.toast('error', data.message || 'บันทึกไม่สำเร็จ'); }
+        } catch (e) { window.toast('error', 'เกิดข้อผิดพลาด: ' + e.message); }
+    });
+})();
 </script>
 @endpush
 

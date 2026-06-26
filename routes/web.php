@@ -9,6 +9,7 @@ use App\Http\Controllers\CompareController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioImportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StockController;
@@ -68,6 +69,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [PortfolioController::class, 'index'])->name('index');
         Route::get('/holdings', [PortfolioController::class, 'holdings'])->name('holdings');
         Route::post('/items', [PortfolioController::class, 'storeItem'])->name('items.store');
+
+        // นำเข้าจากภาพหน้าจอโบรก (Gemini Vision)
+        Route::post('/import/parse', [PortfolioImportController::class, 'parse'])->name('import.parse');
+        Route::post('/import/confirm', [PortfolioImportController::class, 'confirm'])->name('import.confirm');
         Route::put('/items/{item}', [PortfolioController::class, 'updateItem'])->name('items.update');
         Route::delete('/items/{item}', [PortfolioController::class, 'destroyItem'])->name('items.destroy');
         Route::post('/health-check', [PortfolioController::class, 'healthCheck'])->name('health');
