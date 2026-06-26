@@ -160,15 +160,17 @@ class PortfolioService
 
             $value = $currentPrice * $item->shares;
             $isUsd = !str_ends_with(strtoupper($stock->symbol), '.BK');
-            $valueThb = $isUsd ? $value * $rate : $value;
+            $valueThb = $isUsd ? $value * $rate : $value; // มูลค่าปัจจุบัน = FX วันนี้
 
+            // ต้นทุน: ใช้ FX ตามวันที่ซื้อ (historical) — สะท้อนเงินที่จ่ายจริงตอนนั้น
+            $buyFx = $item->purchase_date ? $this->historicalFx($item->purchase_date->toDateString()) : $rate;
             if ($item->invested_amount) {
                 $investedThb = $item->invested_currency === 'USD'
-                    ? $item->invested_amount * $rate
-                    : $item->invested_amount;
+                    ? $item->invested_amount * $buyFx
+                    : $item->invested_amount; // จ่ายเป็น THB → ตรงๆ ไม่ต้องแปลง
             } else {
                 $cost = $item->purchase_price * $item->shares;
-                $investedThb = $isUsd ? $cost * $rate : $cost;
+                $investedThb = $isUsd ? $cost * $buyFx : $cost;
             }
 
             $totalValueThb += $valueThb;

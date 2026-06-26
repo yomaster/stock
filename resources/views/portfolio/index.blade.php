@@ -402,7 +402,8 @@
                             <th class="pb-2 pr-2"><input type="checkbox" id="importCheckAll" class="rounded border-slate-300"></th>
                             <th class="pb-2 pr-2 font-medium">หุ้น</th>
                             <th class="pb-2 pr-2 font-medium">จำนวนหุ้น</th>
-                            <th class="pb-2 pr-2 font-medium">ราคา</th>
+                            <th class="pb-2 pr-2 font-medium">ราคา/หุ้น</th>
+                            <th class="pb-2 pr-2 font-medium">มูลค่าที่จ่าย</th>
                             <th class="pb-2 font-medium">วันเวลา</th>
                         </tr>
                     </thead>
@@ -602,22 +603,28 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
 
         rowsEl.innerHTML = '';
         if (!data.rows.length) {
-            rowsEl.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-400">ไม่พบรายการซื้อในภาพ</td></tr>';
+            rowsEl.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-400">ไม่พบรายการซื้อในภาพ</td></tr>';
             return;
         }
         data.rows.forEach(r => {
             const dup = r.status === 'duplicate', inv = r.status === 'invalid';
             const tag = dup ? ' <span class="text-amber-500 font-normal">(ซ้ำ)</span>'
                 : inv ? ' <span class="text-red-500 font-normal">(ไม่พบหุ้น)</span>' : '';
+            const d = inv ? 'disabled' : '';
+            const curOpt = c => `<option value="THB" ${r.currency==='THB'?'selected':''}>THB</option><option value="USD" ${r.currency==='USD'?'selected':''}>USD</option>`;
             const tr = document.createElement('tr');
             tr.className = inv ? 'opacity-50' : '';
             tr.dataset.stockId = r.stock_id || '';
             tr.innerHTML = `
-                <td class="py-2 pr-2"><input type="checkbox" class="imp-chk rounded border-slate-300" ${(!dup && !inv) ? 'checked' : ''} ${inv ? 'disabled' : ''}></td>
+                <td class="py-2 pr-2"><input type="checkbox" class="imp-chk rounded border-slate-300" ${(!dup && !inv) ? 'checked' : ''} ${d}></td>
                 <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${r.symbol}${tag}</td>
-                <td class="py-2 pr-2"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1" ${inv ? 'disabled' : ''}></td>
-                <td class="py-2 pr-2"><input type="number" step="any" value="${r.price}" class="imp-price w-24 border border-slate-200 rounded-lg px-2 py-1" ${inv ? 'disabled' : ''}></td>
-                <td class="py-2"><input type="text" value="${r.datetime || ''}" class="imp-dt w-40 border border-slate-200 rounded-lg px-2 py-1" ${inv ? 'disabled' : ''}></td>`;
+                <td class="py-2 pr-2"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
+                <td class="py-2 pr-2"><input type="number" step="any" value="${r.price}" class="imp-price w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
+                <td class="py-2 pr-2 whitespace-nowrap">
+                    <input type="number" step="any" value="${r.amount}" class="imp-amount w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}>
+                    <select class="imp-cur border border-slate-200 rounded-lg px-1 py-1" ${d}>${curOpt()}</select>
+                </td>
+                <td class="py-2"><input type="text" value="${r.datetime || ''}" class="imp-dt w-40 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>`;
             rowsEl.appendChild(tr);
         });
     }
@@ -635,6 +642,8 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                 stock_id: tr.dataset.stockId,
                 shares:   tr.querySelector('.imp-shares').value,
                 price:    tr.querySelector('.imp-price').value,
+                amount:   tr.querySelector('.imp-amount').value,
+                currency: tr.querySelector('.imp-cur').value,
                 datetime: tr.querySelector('.imp-dt').value,
             });
         });
