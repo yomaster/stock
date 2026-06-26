@@ -86,6 +86,20 @@
     {{-- ฟอร์มเพิ่มหุ้น --}}
     <div class="glass-card p-6 self-start">
         <h2 class="font-semibold text-slate-800 mb-4">เพิ่มหุ้นเข้าพอร์ต</h2>
+
+        {{-- ทางลัด: นำเข้าจากภาพ (ใช้ก่อนกรอกมือ) --}}
+        <button type="button" id="importImageBtn"
+            class="w-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-[0.98]">
+            📷 นำเข้าจากภาพหน้าจอโบรก
+        </button>
+        <p class="text-xs text-slate-400 mt-1.5 text-center">อัปโหลดภาพรายการซื้อ (Dime ฯลฯ) ได้หลายภาพ — AI อ่านให้อัตโนมัติ</p>
+
+        <div class="flex items-center gap-3 my-4">
+            <div class="flex-1 border-t border-slate-100"></div>
+            <span class="text-xs text-slate-400">หรือกรอกเอง</span>
+            <div class="flex-1 border-t border-slate-100"></div>
+        </div>
+
         <form method="POST" action="{{ route('portfolio.items.store') }}" class="space-y-4" id="addItemForm">
             @csrf
             <div>
@@ -169,15 +183,6 @@
                 + เพิ่มเข้าพอร์ต
             </button>
         </form>
-
-        {{-- นำเข้าจากภาพหน้าจอโบรก --}}
-        <div class="mt-4 pt-4 border-t border-slate-100">
-            <button type="button" id="importImageBtn"
-                class="w-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-[0.98]">
-                📷 นำเข้าจากภาพหน้าจอโบรก
-            </button>
-            <p class="text-xs text-slate-400 mt-1.5 text-center">อัปโหลดภาพรายการซื้อ (Dime ฯลฯ) ได้หลายภาพ — AI อ่านให้อัตโนมัติ</p>
-        </div>
     </div>
 
     {{-- รายการถือครอง + chart + AI --}}
