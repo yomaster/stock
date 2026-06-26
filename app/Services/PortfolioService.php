@@ -110,22 +110,26 @@ class PortfolioService
         });
     }
 
-    /** รวม holdings ตาม symbol (สำหรับกราฟสัดส่วน) */
+    /** รวม holdings ตาม symbol (กราฟสัดส่วน + ตารางสรุปรายหุ้น) — รวมทุก lot ของหุ้นเดียวกัน */
     public function groupBySymbol(array $holdings, float $totalValueThb): array
     {
         $grouped = [];
         foreach ($holdings as $h) {
             $sym = $h['symbol'];
             if (!isset($grouped[$sym])) {
-                $grouped[$sym] = ['symbol' => $sym, 'name' => $h['name'], 'value_thb' => 0];
+                $grouped[$sym] = ['symbol' => $sym, 'name' => $h['name'], 'value_thb' => 0, 'cost_thb' => 0, 'pl_value_thb' => 0];
             }
-            $grouped[$sym]['value_thb'] += $h['value_thb'];
+            $grouped[$sym]['value_thb']    += $h['value_thb'];
+            $grouped[$sym]['cost_thb']     += $h['cost_thb'];
+            $grouped[$sym]['pl_value_thb'] += $h['pl_value_thb'];
         }
         foreach ($grouped as &$g) {
             $g['allocation'] = $totalValueThb > 0 ? ($g['value_thb'] / $totalValueThb) * 100 : 0;
+            $g['pl_percent'] = $g['cost_thb'] > 0 ? ($g['pl_value_thb'] / $g['cost_thb']) * 100 : 0;
         }
         unset($g);
 
+        // เรียงตามมูลค่า (= สัดส่วน) มาก→น้อย
         usort($grouped, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
         return array_values($grouped);
     }
@@ -195,7 +199,8 @@ class PortfolioService
         }
         unset($h);
 
-        usort($holdings, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
+        // รายการถือครอง: เรียงตามวันที่ลงทุน ใหม่→เก่า (ตัวที่ไม่มีวันที่ไปท้ายสุด)
+        usort($holdings, fn ($a, $b) => ($b['purchase_date_raw'] ?? '') <=> ($a['purchase_date_raw'] ?? ''));
 
         return [
             'holdings'         => $holdings,

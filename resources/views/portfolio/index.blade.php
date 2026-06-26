@@ -201,6 +201,57 @@
                 </div>
             </div>
 
+            {{-- ตารางสรุปรายหุ้น (รวมทุก lot ของหุ้นเดียวกัน) เรียงตามสัดส่วนมาก→น้อย --}}
+            <div class="glass-card p-6">
+                <h3 class="font-semibold text-slate-800 mb-4">สรุปรายหุ้น</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="text-slate-400 text-left border-b border-slate-100">
+                            <tr>
+                                <th class="pb-2 font-medium">หุ้น</th>
+                                <th class="pb-2 font-medium text-right">ต้นทุน (บาท)</th>
+                                <th class="pb-2 font-medium text-right">มูลค่า (บาท)</th>
+                                <th class="pb-2 font-medium text-right">กำไร/ขาดทุน</th>
+                                <th class="pb-2 font-medium text-right">สัดส่วน</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            @foreach($allocation as $i => $a)
+                            @php $pos = $a['pl_value_thb'] >= 0; @endphp
+                            <tr>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: var(--c{{ $i }})"></span>
+                                        <span class="font-semibold text-slate-700">{{ $a['symbol'] }}</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['cost_thb'], 0) }}</td>
+                                <td class="py-2.5 text-right font-medium text-slate-800 tabular-nums">{{ number_format($a['value_thb'], 0) }}</td>
+                                <td class="py-2.5 text-right tabular-nums {{ $pos ? 'text-emerald-600' : 'text-red-500' }}">
+                                    <div class="font-medium">{{ $pos ? '+' : '' }}{{ number_format($a['pl_value_thb'], 0) }}</div>
+                                    <div class="text-xs">{{ $pos ? '+' : '' }}{{ number_format($a['pl_percent'], 1) }}%</div>
+                                </td>
+                                <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['allocation'], 1) }}%</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot class="border-t border-slate-200">
+                            <tr class="text-slate-700 font-semibold">
+                                <td class="pt-3">รวม</td>
+                                <td class="pt-3 text-right tabular-nums">{{ number_format($total_cost_thb, 0) }}</td>
+                                <td class="pt-3 text-right tabular-nums">{{ number_format($total_value_thb, 0) }}</td>
+                                @php $tpos = $total_pl_thb >= 0; @endphp
+                                <td class="pt-3 text-right tabular-nums {{ $tpos ? 'text-emerald-600' : 'text-red-500' }}">
+                                    <div>{{ $tpos ? '+' : '' }}{{ number_format($total_pl_thb, 0) }}</div>
+                                    <div class="text-xs">{{ $tpos ? '+' : '' }}{{ number_format($total_pl_percent, 1) }}%</div>
+                                </td>
+                                <td class="pt-3 text-right">100%</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
             {{-- ตารางถือครอง (AJAX pagination) --}}
             <div class="glass-card p-6" id="holdingsContainer">
                 @include('portfolio._holdings')
