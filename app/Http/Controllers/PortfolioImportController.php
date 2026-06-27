@@ -66,10 +66,12 @@ class PortfolioImportController extends Controller
                 continue; // ข้อมูลไม่ครบ → ข้าม
             }
 
+            $fxRate = isset($r['fx_rate']) && $r['fx_rate'] ? (float) $r['fx_rate'] : null;
+
             // หาหุ้น + เพิ่มให้อัตโนมัติถ้ายังไม่ติดตาม
             [$stock, $wasNew] = $this->ensureTracked($user, $symbol);
             if (!$stock) {
-                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $datetime, 'invalid');
+                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $fxRate, $datetime, 'invalid');
                 continue;
             }
             if ($wasNew) {
@@ -80,7 +82,7 @@ class PortfolioImportController extends Controller
             }
 
             // เช็คซ้ำ: หุ้น + วันที่ + จำนวนหุ้น (จับได้ทุกกรณี รวม item เดิมที่ไม่มีเวลา)
-            $rows[] = $this->row($type, $stock->symbol, $stock->id, $shares, $price, $amount, $currency, $datetime,
+            $rows[] = $this->row($type, $stock->symbol, $stock->id, $shares, $price, $amount, $currency, $fxRate, $datetime,
                 $this->isDuplicate($portfolio, $stock->id, $datetime, $shares) ? 'duplicate' : 'new');
         }
 
@@ -103,6 +105,7 @@ class PortfolioImportController extends Controller
             'rows.*.price'      => 'nullable|numeric|min:0',
             'rows.*.amount'     => 'nullable|numeric|min:0',
             'rows.*.currency'   => 'nullable|in:THB,USD',
+            'rows.*.fx_rate'    => 'nullable|numeric|min:1|max:200',
             'rows.*.datetime'   => 'nullable|date',
         ]);
 
@@ -140,6 +143,7 @@ class PortfolioImportController extends Controller
                 // เก็บมูลค่า + สกุลที่จ่าย/ได้รับจริง → พอร์ตคำนวณ FX ตามวันที่ให้เอง
                 'invested_amount'   => $amount > 0 ? $amount : round($price * $shares, 2),
                 'invested_currency' => $currency,
+                'fx_rate'           => (isset($r['fx_rate']) && $r['fx_rate']) ? (float) $r['fx_rate'] : null,
                 'purchase_date'     => $executedAt ? $executedAt->toDateString() : now()->toDateString(),
                 'executed_at'       => $executedAt,
             ]);
@@ -191,7 +195,7 @@ class PortfolioImportController extends Controller
         return [null, false];
     }
 
-    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?Carbon $dt, string $status): array
+    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?float $fxRate, ?Carbon $dt, string $status): array
     {
         return [
             'type'     => $type, // buy | sell
@@ -201,6 +205,7 @@ class PortfolioImportController extends Controller
             'price'    => $price,
             'amount'   => $amount,
             'currency' => $currency,
+            'fx_rate'  => $fxRate,
             'datetime' => $dt?->format('Y-m-d H:i:s'),
             'status'   => $status, // new | duplicate | invalid
         ];

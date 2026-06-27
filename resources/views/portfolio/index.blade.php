@@ -217,6 +217,12 @@
                 <p class="text-xs text-slate-400 mt-1">ระบบดึงราคา + อัตราแลกเปลี่ยนวันนั้นมาคำนวณให้</p>
                 @error('purchase_date') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">เรทแลกเปลี่ยน (FX) <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
+                <input type="number" name="fx_rate" step="any" min="1" max="200" placeholder="เว้นว่าง = เรทตลาดวันนั้น"
+                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                <p class="text-xs text-slate-400 mt-1">1 USD = ? บาท · กรอกเรทจริงจากโบรก (เฉพาะรายการสกุล USD) — เว้นว่าง = ใช้เรท Yahoo</p>
+            </div>
             <button type="submit" id="addItemSubmit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm active:scale-[0.98]">
                 + เพิ่มเข้าพอร์ต
             </button>
@@ -402,6 +408,12 @@
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
 
+            <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">เรท FX <span class="text-slate-400 font-normal">(ไม่บังคับ — เว้นว่าง = เรทตลาด)</span></label>
+                <input type="number" name="fx_rate" id="editFx" step="any" min="1" max="200" placeholder="1 USD = ? บาท"
+                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            </div>
+
             <div class="flex gap-2 pt-2">
                 <button type="button" id="editCancel" class="flex-1 border border-slate-200 text-slate-600 font-medium py-2.5 rounded-xl text-sm hover:bg-slate-50 transition">ยกเลิก</button>
                 <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm">บันทึก</button>
@@ -454,6 +466,7 @@
                             <th class="pb-2 pr-2 font-medium">จำนวนหุ้น</th>
                             <th class="pb-2 pr-2 font-medium">ราคา/หุ้น</th>
                             <th class="pb-2 pr-2 font-medium">มูลค่าที่จ่าย</th>
+                            <th class="pb-2 pr-2 font-medium">เรท FX</th>
                             <th class="pb-2 font-medium">วันเวลา</th>
                         </tr>
                     </thead>
@@ -600,6 +613,7 @@ function openEditModal(btn) {
     document.getElementById('editInvested').value = d.invested || '';
     document.getElementById('editShares').value = d.shares || '';
     document.getElementById('editAvgCost').value = (d.avgCost && parseFloat(d.avgCost) > 0) ? d.avgCost : '';
+    document.getElementById('editFx').value = (d.fx && parseFloat(d.fx) > 0) ? d.fx : '';
     document.querySelectorAll('.edit-cur').forEach(r => r.checked = (r.value === (d.currency || 'THB')));
 
     const dateEl = document.getElementById('editDate');
@@ -685,7 +699,7 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
 
         rowsEl.innerHTML = '';
         if (!data.rows.length) {
-            rowsEl.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-400">ไม่พบรายการซื้อในภาพ</td></tr>';
+            rowsEl.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-400">ไม่พบรายการในภาพ</td></tr>';
             return;
         }
         data.rows.forEach(r => {
@@ -709,6 +723,7 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                     <input type="number" step="any" value="${r.amount}" class="imp-amount w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}>
                     <select class="imp-cur border border-slate-200 rounded-lg px-1 py-1" ${d}>${curOpt()}</select>
                 </td>
+                <td class="py-2 pr-2"><input type="number" step="any" value="${r.fx_rate || ''}" placeholder="ตลาด" class="imp-fx w-16 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
                 <td class="py-2"><input type="text" value="${r.datetime || ''}" class="imp-dt w-40 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>`;
             rowsEl.appendChild(tr);
         });
@@ -730,6 +745,7 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                 price:    tr.querySelector('.imp-price').value,
                 amount:   tr.querySelector('.imp-amount').value,
                 currency: tr.querySelector('.imp-cur').value,
+                fx_rate:  tr.querySelector('.imp-fx').value,
                 datetime: tr.querySelector('.imp-dt').value,
             });
         });

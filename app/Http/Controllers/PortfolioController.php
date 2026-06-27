@@ -105,7 +105,9 @@ class PortfolioController extends Controller
             'type'          => 'required|in:buy,sell',
             'stock_id'      => 'required|exists:stocks,id',
             'purchase_date' => 'nullable|date|before_or_equal:today',
+            'fx_rate'       => 'nullable|numeric|min:1|max:200',
         ]);
+        $fxRate = $request->filled('fx_rate') ? (float) $request->input('fx_rate') : null;
 
         // เลือกได้เฉพาะหุ้นที่ user ติดตาม (กัน inject stock_id ของคนอื่น)
         $stock = $this->userStocks()->findOrFail($request->input('stock_id'));
@@ -127,6 +129,7 @@ class PortfolioController extends Controller
                 'purchase_price'    => $price,
                 'invested_amount'   => round($price * $shares, 2),       // เงินที่ได้จากการขาย (proceeds)
                 'invested_currency' => $data['sell_currency'],
+                'fx_rate'           => $fxRate,
                 'purchase_date'     => $date,
             ]);
             return back()->with('success', "บันทึกการขาย {$stock->symbol} {$shares} หุ้น แล้ว");
@@ -146,6 +149,7 @@ class PortfolioController extends Controller
             'invested_currency' => $fields['investedCurrency'],
             'shares'            => $fields['shares'],
             'purchase_price'    => $fields['purchasePrice'],
+            'fx_rate'           => $fxRate,
             'purchase_date'     => $date,
         ]);
 
@@ -159,6 +163,7 @@ class PortfolioController extends Controller
         $request->validate([
             'mode'          => 'required|in:amount,shares',
             'purchase_date' => 'nullable|date|before_or_equal:today',
+            'fx_rate'       => 'nullable|numeric|min:1|max:200',
         ]);
 
         $stock = $item->stock;
@@ -174,6 +179,7 @@ class PortfolioController extends Controller
             'invested_currency' => $fields['investedCurrency'],
             'shares'            => $fields['shares'],
             'purchase_price'    => $fields['purchasePrice'],
+            'fx_rate'           => $request->filled('fx_rate') ? (float) $request->input('fx_rate') : null,
             'purchase_date'     => $date,
         ]);
 

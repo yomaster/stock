@@ -45,6 +45,7 @@
                         data-avg-cost="{{ $h['purchase_price'] }}"
                         data-invested="{{ $h['invested_amount'] }}"
                         data-currency="{{ $h['invested_currency'] ?? $h['currency'] }}"
+                        data-fx="{{ $h['fx_rate'] }}"
                         data-date="{{ $h['purchase_date_raw'] }}"
                         data-mode="{{ $h['invested_amount'] ? 'amount' : 'shares' }}"
                         title="แก้ไข">

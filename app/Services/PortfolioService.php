@@ -222,6 +222,7 @@ class PortfolioService
                 'purchase_price'    => $item->purchase_price,
                 'invested_amount'   => $item->invested_amount,
                 'invested_currency' => $item->invested_currency,
+                'fx_rate'           => $item->fx_rate,
                 'current_price'     => $current,
                 'purchase_date'     => $item->purchase_date?->format('d/m/Y'),
                 'purchase_date_raw' => $item->purchase_date?->format('Y-m-d'),
@@ -240,13 +241,19 @@ class PortfolioService
         ];
     }
 
-    /** แปลงมูลค่าธุรกรรม (เงินซื้อ/ขาย) เป็น THB ด้วย FX ที่ส่งมา */
+    /**
+     * แปลงมูลค่าธุรกรรม (เงินซื้อ/ขาย) เป็น THB
+     * - ใช้ fx_rate ที่ user กรอกเอง (เรทจริงจากโบรก) ก่อน — ถ้าไม่มีใช้ FX ตลาดวันนั้น
+     * - รายการสกุล THB ไม่ต้องแปลง
+     */
     private function itemThb($item, bool $isUsd, float $fx): float
     {
+        $useFx = $item->fx_rate ?: $fx; // override > เรทตลาด
+
         if ($item->invested_amount) {
-            return $item->invested_currency === 'USD' ? $item->invested_amount * $fx : $item->invested_amount;
+            return $item->invested_currency === 'USD' ? $item->invested_amount * $useFx : $item->invested_amount;
         }
         $native = $item->purchase_price * $item->shares;
-        return $isUsd ? $native * $fx : $native;
+        return $isUsd ? $native * $useFx : $native;
     }
 }

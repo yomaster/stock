@@ -12,6 +12,7 @@ class PortfolioItem extends Model
         'shares'          => 'float',
         'purchase_price'  => 'float',
         'invested_amount' => 'float',
+        'fx_rate'         => 'float',
         'purchase_date'   => 'date',
         'executed_at'     => 'datetime',
     ];
