@@ -1,4 +1,4 @@
-{{-- ตารางรายการถือครอง + pager (ใช้ทั้ง initial load และ AJAX) --}}
+{{-- Ledger ธุรกรรม (ซื้อ/ขาย) + pager (ใช้ทั้ง initial load และ AJAX) --}}
 <div class="flex items-center justify-between mb-4">
     <h3 class="font-semibold text-slate-800">รายการถือครอง</h3>
     <span class="text-xs text-slate-400">ทั้งหมด {{ number_format($holdingsPage['total']) }} รายการ</span>
@@ -9,35 +9,32 @@
         <thead>
             <tr class="text-left text-xs text-slate-500 uppercase border-b border-slate-200">
                 <th class="pb-2 pr-3">หุ้น</th>
-                <th class="pb-2 pr-3 text-right">เงินลงทุน</th>
-                <th class="pb-2 pr-3 text-right">หุ้นที่ได้</th>
-                <th class="pb-2 pr-3 text-right">ราคาซื้อ→ล่าสุด</th>
-                <th class="pb-2 pr-3 text-right">มูลค่า (บาท)</th>
-                <th class="pb-2 pr-3 text-right">กำไร/ขาดทุน</th>
+                <th class="pb-2 pr-3 text-right">เงิน (ลงทุน/ได้รับ)</th>
+                <th class="pb-2 pr-3 text-right">จำนวนหุ้น</th>
+                <th class="pb-2 pr-3 text-right">ราคา→ล่าสุด</th>
                 <th class="pb-2"></th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
             @foreach($holdingsPage['items'] as $h)
+            @php $isSell = ($h['type'] ?? 'buy') === 'sell'; @endphp
             <tr>
                 <td class="py-2.5 pr-3">
-                    <span class="font-semibold text-slate-800">{{ $h['symbol'] }}</span>
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-slate-800">{{ $h['symbol'] }}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded-full {{ $isSell ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600' }}">
+                            {{ $isSell ? '🔴 ขาย' : '🟢 ซื้อ' }}
+                        </span>
+                    </div>
                     <span class="text-xs text-slate-400 block">{{ $h['purchase_date'] ?? '—' }}</span>
                 </td>
-                <td class="py-2.5 pr-3 text-right text-slate-600">
-                    {{ $h['invested_amount'] ? number_format($h['invested_amount'], 0) . ' ' . $h['invested_currency'] : '—' }}
+                <td class="py-2.5 pr-3 text-right {{ $isSell ? 'text-red-500' : 'text-slate-600' }}">
+                    {{ $h['invested_amount'] ? ($isSell ? '−' : '') . number_format($h['invested_amount'], 0) . ' ' . $h['invested_currency'] : '—' }}
                 </td>
                 {{-- shares 7 ตำแหน่ง ตัด 0 ท้ายออกให้อ่านง่าย --}}
                 <td class="py-2.5 pr-3 text-right text-slate-600">{{ rtrim(rtrim(number_format($h['shares'], 7), '0'), '.') }}</td>
                 <td class="py-2.5 pr-3 text-right text-slate-500 text-xs">
                     {{ number_format($h['purchase_price'], 2) }} → {{ number_format($h['current_price'], 2) }} {{ $h['currency'] }}
-                </td>
-                <td class="py-2.5 pr-3 text-right font-medium text-slate-800">{{ number_format($h['value_thb'], 0) }}</td>
-                <td class="py-2.5 pr-3 text-right font-semibold {{ $h['pl_value_thb'] >= 0 ? 'text-emerald-600' : 'text-red-500' }}">
-                    {{ $h['pl_value_thb'] >= 0 ? '+' : '' }}{{ number_format($h['pl_percent'], 1) }}%
-                    <span class="block text-xs font-normal {{ $h['pl_value_thb'] >= 0 ? 'text-emerald-500' : 'text-red-400' }}">
-                        {{ $h['pl_value_thb'] >= 0 ? '+' : '' }}{{ number_format($h['pl_value_thb'], 0) }} บาท
-                    </span>
                 </td>
                 <td class="py-2.5 text-right whitespace-nowrap">
                     {{-- ปุ่มแก้ไข → เปิด modal --}}

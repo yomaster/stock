@@ -25,9 +25,8 @@ class PortfolioController extends Controller
         $stocks    = $this->userStocks()->orderBy('symbol')->get(); // เลือกเพิ่มได้เฉพาะหุ้นที่ติดตาม
         $data      = $this->svc->buildHoldings($portfolio);
 
-        // สัดส่วนสำหรับกราฟ: group ตาม symbol (รวมทุก lot ของหุ้นเดียวกัน)
-        $allocation   = $this->svc->groupBySymbol($data['holdings'], $data['total_value_thb']);
-        $holdingsPage = $this->paginateHoldings($data['holdings'], 1);
+        // ledger ธุรกรรม (รายการถือครอง) แบ่งหน้า
+        $holdingsPage = $this->paginateHoldings($data['transactions'], 1);
 
         // ผลวิเคราะห์ AI ล่าสุดของพอร์ตนี้ (ถ้ามี)
         $latest = $portfolio->latestHealthCheck;
@@ -39,7 +38,6 @@ class PortfolioController extends Controller
             'portfolios'       => auth()->user()->portfolios()->orderBy('name')->get(),
             'stocks'           => $stocks,
             'rate'             => $this->svc->currentFx(),
-            'allocation'       => $allocation,
             'holdingsPage'     => $holdingsPage,
             'latestHealthHtml' => $latestHealthHtml,
             'latestHealthAt'   => $latestHealthAt,
@@ -96,7 +94,7 @@ class PortfolioController extends Controller
     public function holdings(Request $request)
     {
         $data = $this->svc->buildHoldings($this->currentPortfolio());
-        $holdingsPage = $this->paginateHoldings($data['holdings'], (int) $request->input('page', 1));
+        $holdingsPage = $this->paginateHoldings($data['transactions'], (int) $request->input('page', 1));
 
         return view('portfolio._holdings', compact('holdingsPage'))->render();
     }
@@ -104,21 +102,45 @@ class PortfolioController extends Controller
     public function storeItem(Request $request)
     {
         $request->validate([
+            'type'          => 'required|in:buy,sell',
             'stock_id'      => 'required|exists:stocks,id',
-            'mode'          => 'required|in:amount,shares',
             'purchase_date' => 'nullable|date|before_or_equal:today',
         ]);
 
-        // เลือกเพิ่มได้เฉพาะหุ้นที่ user ติดตาม (กัน inject stock_id ของคนอื่น)
+        // เลือกได้เฉพาะหุ้นที่ user ติดตาม (กัน inject stock_id ของคนอื่น)
         $stock = $this->userStocks()->findOrFail($request->input('stock_id'));
         $date  = $request->input('purchase_date') ?: now()->toDateString();
 
+        // ── ขาย: หุ้นที่ขาย + ราคาขาย + สกุล (หักออกจากพอร์ต) ──
+        if ($request->input('type') === 'sell') {
+            $data = $request->validate([
+                'shares'        => 'required|numeric|min:0.0000001',
+                'sell_price'    => 'required|numeric|min:0.0000001',
+                'sell_currency' => 'required|in:THB,USD',
+            ]);
+            $shares = (float) $data['shares'];
+            $price  = (float) $data['sell_price'];
+            $this->currentPortfolio()->items()->create([
+                'type'              => 'sell',
+                'stock_id'          => $stock->id,
+                'shares'            => $shares,
+                'purchase_price'    => $price,
+                'invested_amount'   => round($price * $shares, 2),       // เงินที่ได้จากการขาย (proceeds)
+                'invested_currency' => $data['sell_currency'],
+                'purchase_date'     => $date,
+            ]);
+            return back()->with('success', "บันทึกการขาย {$stock->symbol} {$shares} หุ้น แล้ว");
+        }
+
+        // ── ซื้อ (เดิม) ──
+        $request->validate(['mode' => 'required|in:amount,shares']);
         $fields = $this->computeItemFields($stock, $request->input('mode'), $date, $request);
         if (isset($fields['error'])) {
             return back()->with('error', $fields['error']);
         }
 
         $this->currentPortfolio()->items()->create([
+            'type'              => 'buy',
             'stock_id'          => $stock->id,
             'invested_amount'   => $fields['invested'],
             'invested_currency' => $fields['investedCurrency'],
@@ -219,16 +241,16 @@ class PortfolioController extends Controller
         $portfolio = $this->currentPortfolio();
         $data = $this->svc->buildHoldings($portfolio);
 
-        if (empty($data['holdings'])) {
+        if (empty($data['positions'])) {
             return response()->json(['success' => false, 'message' => 'ยังไม่มีหุ้นในพอร์ต']);
         }
 
-        // สรุป holdings ให้ AI (สัดส่วนเป็น % ของมูลค่ารวมในสกุล THB)
+        // สรุป position สุทธิให้ AI (สัดส่วนเป็น % ของมูลค่ารวมในสกุล THB)
         $lines = [];
-        foreach ($data['holdings'] as $h) {
-            $lines[] = "- {$h['symbol']} ({$h['name']}): สัดส่วน " . number_format($h['allocation'], 1)
-                . "% มูลค่า " . number_format($h['value_thb'], 0) . " บาท"
-                . " กำไร/ขาดทุน " . number_format($h['pl_percent'], 1) . "%";
+        foreach ($data['positions'] as $p) {
+            $lines[] = "- {$p['symbol']} ({$p['name']}): สัดส่วน " . number_format($p['allocation'], 1)
+                . "% มูลค่า " . number_format($p['value_thb'], 0) . " บาท"
+                . " กำไร/ขาดทุน " . number_format($p['unrealized_pl_pct'], 1) . "%";
         }
         $block = implode("\n", $lines);
 

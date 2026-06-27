@@ -234,26 +234,30 @@ class BotCommandService
             }
             $data = $this->portfolio->buildHoldings($portfolio);
 
-            if (empty($data['holdings'])) {
+            $positions = $data['positions'];
+            if (empty($positions)) {
                 $m->reply($ctx, "💼 {$portfolio->name}\nพอร์ตนี้ยังว่าง — เพิ่มหุ้นที่หน้าเว็บก่อน");
                 return;
             }
 
-            $alloc = $this->portfolio->groupBySymbol($data['holdings'], $data['total_value_thb']);
-            $pl    = $data['total_pl_thb'];
+            $pl    = $data['total_unrealized_pl'];
             $sign  = $pl >= 0 ? '+' : '';
 
             $txt  = "💼 {$portfolio->name}\n━━━━━━━━━━━━━\n";
             $txt .= "มูลค่า: " . number_format($data['total_value_thb'], 0) . " บาท\n";
-            $txt .= "เงินลงทุน: " . number_format($data['total_cost_thb'], 0) . " บาท\n";
+            $txt .= "ต้นทุนคงเหลือ: " . number_format($data['total_cost_thb'], 0) . " บาท\n";
             $txt .= ($pl >= 0 ? "✅ " : "🔻 ") . "กำไร/ขาดทุน: {$sign}" . number_format($pl, 0)
-                . " บาท ({$sign}" . number_format($data['total_pl_percent'], 1) . "%)\n\n";
-            $txt .= "📊 สัดส่วน (Top " . min(8, count($alloc)) . "):\n";
-            foreach (array_slice($alloc, 0, 8) as $a) {
+                . " บาท ({$sign}" . number_format($data['total_unrealized_pct'], 1) . "%)\n";
+            if (abs($data['total_realized_pl']) >= 1) {
+                $rs = $data['total_realized_pl'] >= 0 ? '+' : '';
+                $txt .= "💰 กำไรรับรู้แล้ว: {$rs}" . number_format($data['total_realized_pl'], 0) . " บาท\n";
+            }
+            $txt .= "\n📊 สัดส่วน (Top " . min(8, count($positions)) . "):\n";
+            foreach (array_slice($positions, 0, 8) as $a) {
                 $txt .= "• {$a['symbol']} " . number_format($a['allocation'], 1) . "%\n";
             }
 
-            $chartUrl = $this->allocationChartUrl($alloc);
+            $chartUrl = $this->allocationChartUrl($positions);
             $m->reply($ctx, [
                 ['type' => 'text',  'text' => trim($txt)],
                 ['type' => 'image', 'url'  => $chartUrl],

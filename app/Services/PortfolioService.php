@@ -110,74 +110,111 @@ class PortfolioService
         });
     }
 
-    /** รวม holdings ตาม symbol (กราฟสัดส่วน + ตารางสรุปรายหุ้น) — รวมทุก lot ของหุ้นเดียวกัน */
-    public function groupBySymbol(array $holdings, float $totalValueThb): array
-    {
-        $grouped = [];
-        foreach ($holdings as $h) {
-            $sym = $h['symbol'];
-            if (!isset($grouped[$sym])) {
-                $grouped[$sym] = ['symbol' => $sym, 'name' => $h['name'], 'value_thb' => 0, 'cost_thb' => 0, 'pl_value_thb' => 0];
-            }
-            $grouped[$sym]['value_thb']    += $h['value_thb'];
-            $grouped[$sym]['cost_thb']     += $h['cost_thb'];
-            $grouped[$sym]['pl_value_thb'] += $h['pl_value_thb'];
-        }
-        foreach ($grouped as &$g) {
-            $g['allocation'] = $totalValueThb > 0 ? ($g['value_thb'] / $totalValueThb) * 100 : 0;
-            $g['pl_percent'] = $g['cost_thb'] > 0 ? ($g['pl_value_thb'] / $g['cost_thb']) * 100 : 0;
-        }
-        unset($g);
-
-        // เรียงตามมูลค่า (= สัดส่วน) มาก→น้อย
-        usort($grouped, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
-        return array_values($grouped);
-    }
-
     /**
-     * คำนวณ holdings: มูลค่าปัจจุบัน, ทุน, กำไร/ขาดทุน, สัดส่วน
+     * คำนวณพอร์ตแบบ Average Cost — รองรับทั้งซื้อ (buy) และขาย (sell)
+     * คืน:
+     *   positions[]    = สถานะสุทธิต่อหุ้น (หุ้นคงเหลือ/ต้นทุนเฉลี่ย/มูลค่า/กำไรยังไม่รับรู้ + สัดส่วน)
+     *   transactions[] = ledger ทุกธุรกรรม (สำหรับ "รายการถือครอง") เรียงวันใหม่→เก่า
+     *   totals         = มูลค่า/ต้นทุนคงเหลือ/กำไรยังไม่รับรู้ + กำไรที่รับรู้แล้ว
      */
     public function buildHoldings(Portfolio $portfolio): array
     {
         $rate  = $this->currentFx();
         $items = $portfolio->items()->with('stock')->get();
 
-        $holdings = [];
-        $totalValueThb = 0;
-        $totalCostThb  = 0;
-
+        // ── สะสมต่อหุ้น (buy/sell) ──
+        $byStock = [];
         foreach ($items as $item) {
             $stock = $item->stock;
             if (!$stock) {
                 continue;
             }
-
-            $latest = StockPrice::where('stock_id', $stock->id)
-                ->orderBy('date', 'desc')->first();
-            $currentPrice = $this->livePrice($stock->symbol)
-                ?? $latest?->close
-                ?? $item->purchase_price;
-
-            $value = $currentPrice * $item->shares;
+            $sid = $stock->id;
+            if (!isset($byStock[$sid])) {
+                $byStock[$sid] = [
+                    'stock' => $stock, 'symbol' => $stock->symbol, 'name' => $stock->name,
+                    'buy_shares' => 0, 'buy_cost_thb' => 0, 'sell_shares' => 0, 'sell_proceeds_thb' => 0,
+                ];
+            }
             $isUsd = !str_ends_with(strtoupper($stock->symbol), '.BK');
-            $valueThb = $isUsd ? $value * $rate : $value; // มูลค่าปัจจุบัน = FX วันนี้
+            $fx    = $item->purchase_date ? $this->historicalFx($item->purchase_date->toDateString()) : $rate; // FX วันธุรกรรม
+            $thb   = $this->itemThb($item, $isUsd, $fx);
 
-            // ต้นทุน: ใช้ FX ตามวันที่ซื้อ (historical) — สะท้อนเงินที่จ่ายจริงตอนนั้น
-            $buyFx = $item->purchase_date ? $this->historicalFx($item->purchase_date->toDateString()) : $rate;
-            if ($item->invested_amount) {
-                $investedThb = $item->invested_currency === 'USD'
-                    ? $item->invested_amount * $buyFx
-                    : $item->invested_amount; // จ่ายเป็น THB → ตรงๆ ไม่ต้องแปลง
+            if (($item->type ?? 'buy') === 'sell') {
+                $byStock[$sid]['sell_shares']      += $item->shares;
+                $byStock[$sid]['sell_proceeds_thb'] += $thb;
             } else {
-                $cost = $item->purchase_price * $item->shares;
-                $investedThb = $isUsd ? $cost * $buyFx : $cost;
+                $byStock[$sid]['buy_shares']   += $item->shares;
+                $byStock[$sid]['buy_cost_thb'] += $thb;
+            }
+        }
+
+        // ── คำนวณ position สุทธิ + realized ──
+        $positions = [];
+        $totalValueThb = 0;
+        $totalCostThb  = 0;
+        $totalRealized = 0;
+        $priceMap = [];
+
+        foreach ($byStock as $sid => $b) {
+            $stock   = $b['stock'];
+            $avgCost = $b['buy_shares'] > 0 ? $b['buy_cost_thb'] / $b['buy_shares'] : 0; // THB ต่อหุ้น
+            $netShares = $b['buy_shares'] - $b['sell_shares'];
+
+            // กำไรที่รับรู้แล้ว = เงินที่ได้จากการขาย − ต้นทุนเฉลี่ยของหุ้นที่ขาย
+            $totalRealized += $b['sell_proceeds_thb'] - ($b['sell_shares'] * $avgCost);
+
+            if ($netShares <= 0.0000001) {
+                continue; // ขายหมด — ไม่อยู่ในพอร์ต (realized ค้างใน total แล้ว)
             }
 
-            $totalValueThb += $valueThb;
-            $totalCostThb  += $investedThb;
+            $isUsd   = !str_ends_with(strtoupper($stock->symbol), '.BK');
+            $current = $this->livePrice($stock->symbol)
+                ?? optional(StockPrice::where('stock_id', $stock->id)->orderBy('date', 'desc')->first())->close
+                ?? 0;
+            $priceMap[$sid] = $current;
 
-            $holdings[] = [
+            $valueThb = $netShares * $current * ($isUsd ? $rate : 1);
+            $costThb  = $avgCost * $netShares;
+
+            $totalValueThb += $valueThb;
+            $totalCostThb  += $costThb;
+
+            $positions[] = [
+                'symbol'            => $stock->symbol,
+                'name'              => $stock->name,
+                'currency'          => $stock->currency,
+                'net_shares'        => $netShares,
+                'avg_cost_thb'      => $avgCost,
+                'current_price'     => $current,
+                'value_thb'         => $valueThb,
+                'cost_thb'          => $costThb,
+                'unrealized_pl_thb' => $valueThb - $costThb,
+                'unrealized_pl_pct' => $costThb > 0 ? (($valueThb - $costThb) / $costThb) * 100 : 0,
+            ];
+        }
+
+        foreach ($positions as &$p) {
+            $p['allocation'] = $totalValueThb > 0 ? ($p['value_thb'] / $totalValueThb) * 100 : 0;
+        }
+        unset($p);
+        usort($positions, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
+
+        // ── ledger: ทุกธุรกรรม (สำหรับ "รายการถือครอง") ──
+        $transactions = [];
+        foreach ($items as $item) {
+            $stock = $item->stock;
+            if (!$stock) {
+                continue;
+            }
+            $current = $priceMap[$stock->id]
+                ?? $this->livePrice($stock->symbol)
+                ?? optional(StockPrice::where('stock_id', $stock->id)->orderBy('date', 'desc')->first())->close
+                ?? $item->purchase_price;
+
+            $transactions[] = [
                 'id'                => $item->id,
+                'type'              => $item->type ?? 'buy',
                 'symbol'            => $stock->symbol,
                 'name'              => $stock->name,
                 'currency'          => $stock->currency,
@@ -185,31 +222,31 @@ class PortfolioService
                 'purchase_price'    => $item->purchase_price,
                 'invested_amount'   => $item->invested_amount,
                 'invested_currency' => $item->invested_currency,
+                'current_price'     => $current,
                 'purchase_date'     => $item->purchase_date?->format('d/m/Y'),
                 'purchase_date_raw' => $item->purchase_date?->format('Y-m-d'),
-                'current_price'     => $currentPrice,
-                'value'             => $value,
-                'value_thb'         => $valueThb,
-                'cost_thb'          => $investedThb,
-                'pl_value_thb'      => $valueThb - $investedThb,
-                'pl_percent'        => $investedThb > 0 ? (($valueThb - $investedThb) / $investedThb) * 100 : 0,
             ];
         }
-
-        foreach ($holdings as &$h) {
-            $h['allocation'] = $totalValueThb > 0 ? ($h['value_thb'] / $totalValueThb) * 100 : 0;
-        }
-        unset($h);
-
-        // รายการถือครอง: เรียงตามวันที่ลงทุน ใหม่→เก่า (ตัวที่ไม่มีวันที่ไปท้ายสุด)
-        usort($holdings, fn ($a, $b) => ($b['purchase_date_raw'] ?? '') <=> ($a['purchase_date_raw'] ?? ''));
+        usort($transactions, fn ($a, $b) => ($b['purchase_date_raw'] ?? '') <=> ($a['purchase_date_raw'] ?? ''));
 
         return [
-            'holdings'         => $holdings,
-            'total_value_thb'  => $totalValueThb,
-            'total_cost_thb'   => $totalCostThb,
-            'total_pl_thb'     => $totalValueThb - $totalCostThb,
-            'total_pl_percent' => $totalCostThb > 0 ? (($totalValueThb - $totalCostThb) / $totalCostThb) * 100 : 0,
+            'positions'            => $positions,
+            'transactions'         => $transactions,
+            'total_value_thb'      => $totalValueThb,
+            'total_cost_thb'       => $totalCostThb,
+            'total_unrealized_pl'  => $totalValueThb - $totalCostThb,
+            'total_unrealized_pct' => $totalCostThb > 0 ? (($totalValueThb - $totalCostThb) / $totalCostThb) * 100 : 0,
+            'total_realized_pl'    => $totalRealized,
         ];
+    }
+
+    /** แปลงมูลค่าธุรกรรม (เงินซื้อ/ขาย) เป็น THB ด้วย FX ที่ส่งมา */
+    private function itemThb($item, bool $isUsd, float $fx): float
+    {
+        if ($item->invested_amount) {
+            return $item->invested_currency === 'USD' ? $item->invested_amount * $fx : $item->invested_amount;
+        }
+        $native = $item->purchase_price * $item->shares;
+        return $isUsd ? $native * $fx : $native;
     }
 }

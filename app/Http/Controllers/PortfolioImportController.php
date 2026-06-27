@@ -55,6 +55,7 @@ class PortfolioImportController extends Controller
         $newStocks = [];
 
         foreach ($list as $r) {
+            $type     = (($r['type'] ?? 'buy') === 'sell') ? 'sell' : 'buy';
             $symbol   = strtoupper(trim($r['symbol'] ?? ''));
             $shares   = (float) ($r['shares'] ?? 0);
             $price    = (float) ($r['price'] ?? 0);
@@ -68,7 +69,7 @@ class PortfolioImportController extends Controller
             // หาหุ้น + เพิ่มให้อัตโนมัติถ้ายังไม่ติดตาม
             [$stock, $wasNew] = $this->ensureTracked($user, $symbol);
             if (!$stock) {
-                $rows[] = $this->row($symbol, null, $shares, $price, $amount, $currency, $datetime, 'invalid');
+                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $datetime, 'invalid');
                 continue;
             }
             if ($wasNew) {
@@ -79,7 +80,7 @@ class PortfolioImportController extends Controller
             }
 
             // เช็คซ้ำ: หุ้น + วันที่ + จำนวนหุ้น (จับได้ทุกกรณี รวม item เดิมที่ไม่มีเวลา)
-            $rows[] = $this->row($stock->symbol, $stock->id, $shares, $price, $amount, $currency, $datetime,
+            $rows[] = $this->row($type, $stock->symbol, $stock->id, $shares, $price, $amount, $currency, $datetime,
                 $this->isDuplicate($portfolio, $stock->id, $datetime, $shares) ? 'duplicate' : 'new');
         }
 
@@ -96,6 +97,7 @@ class PortfolioImportController extends Controller
     {
         $data = $request->validate([
             'rows'              => 'required|array|min:1',
+            'rows.*.type'       => 'nullable|in:buy,sell',
             'rows.*.stock_id'   => 'required|integer',
             'rows.*.shares'     => 'required|numeric|min:0.0000001',
             'rows.*.price'      => 'nullable|numeric|min:0',
@@ -131,10 +133,11 @@ class PortfolioImportController extends Controller
             }
 
             $portfolio->items()->create([
+                'type'              => (($r['type'] ?? 'buy') === 'sell') ? 'sell' : 'buy',
                 'stock_id'          => $stock->id,
                 'shares'            => $shares,
                 'purchase_price'    => $price ?: ($amount && $shares ? $amount / $shares : 0),
-                // เก็บมูลค่า + สกุลที่จ่ายจริง → พอร์ตคำนวณ FX ตามวันที่ให้เอง
+                // เก็บมูลค่า + สกุลที่จ่าย/ได้รับจริง → พอร์ตคำนวณ FX ตามวันที่ให้เอง
                 'invested_amount'   => $amount > 0 ? $amount : round($price * $shares, 2),
                 'invested_currency' => $currency,
                 'purchase_date'     => $executedAt ? $executedAt->toDateString() : now()->toDateString(),
@@ -188,9 +191,10 @@ class PortfolioImportController extends Controller
         return [null, false];
     }
 
-    private function row(string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?Carbon $dt, string $status): array
+    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?Carbon $dt, string $status): array
     {
         return [
+            'type'     => $type, // buy | sell
             'symbol'   => $symbol,
             'stock_id' => $stockId,
             'shares'   => $shares,
@@ -258,26 +262,26 @@ class PortfolioImportController extends Controller
     private function prompt(): string
     {
         return <<<TXT
-คุณคือระบบอ่านรายการซื้อหุ้นจากภาพหน้าจอแอปโบรกเกอร์ (เช่น Dime)
-อ่านทุกภาพที่แนบมา แล้วดึง "เฉพาะรายการซื้อที่สำเร็จ (ซื้อ / เสร็จสิ้น / Buy)" เท่านั้น
+คุณคือระบบอ่านรายการซื้อ-ขายหุ้นจากภาพหน้าจอแอปโบรกเกอร์ (เช่น Dime)
+อ่านทุกภาพที่แนบมา แล้วดึง "เฉพาะรายการที่สำเร็จ (เสร็จสิ้น)" ทั้ง ซื้อ และ ขาย
 
-⚠️ ข้ามรายการเหล่านี้ ห้ามนำมา:
-- ขาย (Sell)
+⚠️ ข้ามรายการเหล่านี้ ห้ามนำมาเด็ดขาด:
 - ปันผล / รับเงินเข้า / ดอกเบี้ย (Dividend)
-- รายการที่ยกเลิก / ไม่สำเร็จ / ล้มเหลว
+- รายการที่ยังไม่สำเร็จ: "รอเวลาทำการ", "รอจับคู่", "รอยกเลิก", "ยกเลิก", "ไม่สำเร็จ", "ล้มเหลว"
 
-แต่ละรายการซื้อมีฟิลด์:
+แต่ละรายการมีฟิลด์:
+- type: "buy" ถ้าเป็น "ซื้อ", "sell" ถ้าเป็น "ขาย"
 - symbol: ชื่อย่อหุ้น ตัวพิมพ์ใหญ่ (เช่น NVDA, GOOG, PTT)
 - shares: จำนวนหุ้นตามจริง ทศนิยมครบ (เช่น 0.2443011)
 - price: "ราคาที่ได้จริง" ต่อหุ้น เป็นตัวเลข (เช่น 200.04)
-- amount: มูลค่าที่จ่ายจริงทั้งรายการ — ตัวเลขใหญ่สีเขียว (เช่น 48.95 หรือ 499.72)
-- currency: สกุลเงินที่จ่าย — ดูจากหน่วยของ amount: ถ้า "บาท"=THB, ถ้า "USD"=USD
-- datetime: วันเวลาที่ซื้อ รูปแบบ "YYYY-MM-DD HH:MM:SS"
+- amount: มูลค่าที่จ่าย/ได้รับทั้งรายการ (เช่น 48.95 หรือ 499.72)
+- currency: สกุลเงิน — ถ้าหน่วยเป็น "บาท"=THB, ถ้า "USD"=USD
+- datetime: วันเวลา รูปแบบ "YYYY-MM-DD HH:MM:SS"
   ⚠️ วันที่ในภาพเป็น พ.ศ. (เช่น "25 มิ.ย. 69" = 25 มิถุนายน 2569) ให้แปลงเป็น ค.ศ. เสมอ (2569 − 543 = 2026)
 
 ตอบเป็น JSON array เท่านั้น ห้ามมีข้อความอื่นหรือ markdown:
-[{"symbol":"NVDA","shares":0.2443011,"price":200.04,"amount":48.95,"currency":"USD","datetime":"2026-06-25 14:27:58"},{"symbol":"NVDA","shares":0.0682511,"price":223.00,"amount":499.72,"currency":"THB","datetime":"2026-05-20 06:20:29"}]
-ถ้าไม่มีรายการซื้อเลย ตอบ []
+[{"type":"buy","symbol":"NVDA","shares":0.2443011,"price":200.04,"amount":48.95,"currency":"USD","datetime":"2026-06-25 14:27:58"},{"type":"sell","symbol":"AAPL","shares":0.1927012,"price":270.39,"amount":52.11,"currency":"USD","datetime":"2026-04-20 11:40:08"}]
+ถ้าไม่มีรายการเลย ตอบ []
 TXT;
     }
 }

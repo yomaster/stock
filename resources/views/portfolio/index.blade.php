@@ -56,8 +56,8 @@
 </div>
 
 {{-- สรุปรวม --}}
-@if(!empty($holdings))
-@php $isProfit = $total_pl_thb >= 0; @endphp
+@if(!empty($transactions))
+@php $isProfit = $total_unrealized_pl >= 0; $rzProfit = $total_realized_pl >= 0; @endphp
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="glass-card p-4 text-center">
         <div class="text-xs text-slate-500 mb-1">มูลค่าพอร์ต</div>
@@ -65,18 +65,19 @@
         <div class="text-xs text-slate-400">บาท</div>
     </div>
     <div class="glass-card p-4 text-center">
-        <div class="text-xs text-slate-500 mb-1">เงินลงทุน (ทุน)</div>
+        <div class="text-xs text-slate-500 mb-1">ต้นทุนคงเหลือ</div>
         <div class="text-xl font-bold text-slate-800">{{ number_format($total_cost_thb, 0) }}</div>
         <div class="text-xs text-slate-400">บาท</div>
     </div>
     <div class="glass-card p-4 text-center {{ $isProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
-        <div class="text-xs {{ $isProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">กำไร/ขาดทุน</div>
-        <div class="text-xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_pl_thb, 0) }}</div>
-        <div class="text-xs {{ $isProfit ? 'text-emerald-500' : 'text-red-500' }}">บาท</div>
+        <div class="text-xs {{ $isProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">กำไร/ขาดทุน (ยังถือ)</div>
+        <div class="text-xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_unrealized_pl, 0) }}</div>
+        <div class="text-xs {{ $isProfit ? 'text-emerald-500' : 'text-red-500' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_unrealized_pct, 1) }}%</div>
     </div>
-    <div class="glass-card p-4 text-center {{ $isProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
-        <div class="text-xs {{ $isProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">ผลตอบแทน</div>
-        <div class="text-2xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_pl_percent, 1) }}%</div>
+    <div class="glass-card p-4 text-center {{ $rzProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
+        <div class="text-xs {{ $rzProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">กำไรรับรู้แล้ว (ขายไป)</div>
+        <div class="text-xl font-bold {{ $rzProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $rzProfit ? '+' : '' }}{{ number_format($total_realized_pl, 0) }}</div>
+        <div class="text-xs text-slate-400">บาท</div>
     </div>
 </div>
 @endif
@@ -92,7 +93,7 @@
             class="w-full border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-medium py-2.5 rounded-xl text-sm transition flex items-center justify-center gap-2 active:scale-[0.98]">
             📷 นำเข้าจากภาพหน้าจอโบรก
         </button>
-        <p class="text-xs text-slate-400 mt-1.5 text-center">อัปโหลดภาพรายการซื้อ (Dime ฯลฯ) ได้หลายภาพ — AI อ่านให้อัตโนมัติ</p>
+        <p class="text-xs text-slate-400 mt-1.5 text-center">อัปโหลดภาพรายการซื้อ-ขาย (Dime ฯลฯ) ได้หลายภาพ — AI อ่านให้อัตโนมัติ</p>
 
         <div class="flex items-center gap-3 my-4">
             <div class="flex-1 border-t border-slate-100"></div>
@@ -102,6 +103,14 @@
 
         <form method="POST" action="{{ route('portfolio.items.store') }}" class="space-y-4" id="addItemForm">
             @csrf
+            <input type="hidden" name="type" id="itemType" value="buy">
+
+            {{-- ซื้อ / ขาย --}}
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" data-type="buy" class="type-btn border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-600 transition">🟢 ซื้อ (เพิ่ม)</button>
+                <button type="button" data-type="sell" class="type-btn border border-slate-200 rounded-xl py-2.5 text-sm font-medium text-slate-600 transition">🔴 ขาย (หักออก)</button>
+            </div>
+
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">หุ้น</label>
                 <select name="stock_id" required class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
@@ -113,6 +122,8 @@
                 @error('stock_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
+            {{-- BUY fields (ซ่อนเมื่อเลือกขาย) --}}
+            <div id="buyFields" class="space-y-4">
             {{-- เลือกวิธีเพิ่ม --}}
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">วิธีเพิ่ม</label>
@@ -171,6 +182,33 @@
                     <p class="text-xs text-slate-400 mt-1">สกุลของหุ้น (ไทย=บาท, US=ดอลลาร์) · ถ้าไม่รู้ปล่อยว่างได้</p>
                 </div>
             </div>
+            </div>{{-- /#buyFields --}}
+
+            {{-- SELL fields (ซ่อนเมื่อเลือกซื้อ) --}}
+            <div id="sellFields" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนหุ้นที่ขาย</label>
+                    <input type="number" name="shares" step="any" min="0.0000001" placeholder="เช่น 0.5 (เศษหุ้นได้)" disabled
+                        class="sell-field w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">ราคาขาย/หุ้น</label>
+                    <input type="number" name="sell_price" step="any" min="0.0000001" placeholder="ราคาที่ขายได้จริง" disabled
+                        class="sell-field w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    <p class="text-xs text-slate-400 mt-1">สกุลของหุ้น (ไทย=บาท, US=ดอลลาร์)</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">สกุลเงินที่ได้รับ</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        @foreach(['THB' => '🇹🇭 บาท', 'USD' => '🇺🇸 ดอลลาร์'] as $code => $label)
+                        <label class="cursor-pointer">
+                            <input type="radio" name="sell_currency" value="{{ $code }}" {{ $code === 'THB' ? 'checked' : '' }} disabled class="sell-field peer sr-only">
+                            <div class="border border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 rounded-xl py-2.5 text-center text-sm font-medium text-slate-600 peer-checked:text-indigo-700 transition">{{ $label }}</div>
+                        </label>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
 
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่ <span class="text-slate-400 font-normal">(ไม่บังคับ — default วันนี้)</span></label>
@@ -179,7 +217,7 @@
                 <p class="text-xs text-slate-400 mt-1">ระบบดึงราคา + อัตราแลกเปลี่ยนวันนั้นมาคำนวณให้</p>
                 @error('purchase_date') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
-            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm active:scale-[0.98]">
+            <button type="submit" id="addItemSubmit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm active:scale-[0.98]">
                 + เพิ่มเข้าพอร์ต
             </button>
         </form>
@@ -187,14 +225,15 @@
 
     {{-- รายการถือครอง + chart + AI --}}
     <div class="lg:col-span-2 space-y-6">
-        @if(empty($holdings))
+        @if(empty($transactions))
             <div class="glass-card flex flex-col items-center justify-center py-20 text-center">
                 <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4 text-3xl">💼</div>
                 <p class="text-slate-500 font-medium">พอร์ตยังว่าง</p>
                 <p class="text-slate-400 text-sm mt-1">เพิ่มหุ้นที่ถือจริงจากฟอร์มด้านซ้าย</p>
             </div>
         @else
-            {{-- Allocation donut + table --}}
+            @if(!empty($positions))
+            {{-- Allocation donut + legend --}}
             <div class="glass-card p-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
                     <div>
@@ -202,7 +241,7 @@
                         <canvas id="allocChart" height="200"></canvas>
                     </div>
                     <div class="space-y-2">
-                        @foreach($allocation as $i => $a)
+                        @foreach($positions as $i => $a)
                         <div class="flex items-center justify-between text-sm">
                             <div class="flex items-center gap-2">
                                 <span class="w-3 h-3 rounded-full" style="background: var(--c{{ $i }})"></span>
@@ -215,9 +254,9 @@
                 </div>
             </div>
 
-            {{-- ตารางสรุปรายหุ้น (รวมทุก lot ของหุ้นเดียวกัน) เรียงตามสัดส่วนมาก→น้อย --}}
+            {{-- ตารางสรุปรายหุ้น (สถานะสุทธิหลังหักขาย, ต้นทุนเฉลี่ย) เรียงตามสัดส่วนมาก→น้อย --}}
             <div class="glass-card p-6">
-                <h3 class="font-semibold text-slate-800 mb-4">สรุปรายหุ้น</h3>
+                <h3 class="font-semibold text-slate-800 mb-4">สรุปรายหุ้น (คงเหลือ)</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="text-slate-400 text-left border-b border-slate-100">
@@ -230,20 +269,21 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
-                            @foreach($allocation as $i => $a)
-                            @php $pos = $a['pl_value_thb'] >= 0; @endphp
+                            @foreach($positions as $i => $a)
+                            @php $pos = $a['unrealized_pl_thb'] >= 0; @endphp
                             <tr>
                                 <td class="py-2.5">
                                     <div class="flex items-center gap-2">
                                         <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: var(--c{{ $i }})"></span>
                                         <span class="font-semibold text-slate-700">{{ $a['symbol'] }}</span>
                                     </div>
+                                    <span class="text-xs text-slate-400 ml-4.5">{{ rtrim(rtrim(number_format($a['net_shares'], 7), '0'), '.') }} หุ้น</span>
                                 </td>
                                 <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['cost_thb'], 0) }}</td>
                                 <td class="py-2.5 text-right font-medium text-slate-800 tabular-nums">{{ number_format($a['value_thb'], 0) }}</td>
                                 <td class="py-2.5 text-right tabular-nums {{ $pos ? 'text-emerald-600' : 'text-red-500' }}">
-                                    <div class="font-medium">{{ $pos ? '+' : '' }}{{ number_format($a['pl_value_thb'], 0) }}</div>
-                                    <div class="text-xs">{{ $pos ? '+' : '' }}{{ number_format($a['pl_percent'], 1) }}%</div>
+                                    <div class="font-medium">{{ $pos ? '+' : '' }}{{ number_format($a['unrealized_pl_thb'], 0) }}</div>
+                                    <div class="text-xs">{{ $pos ? '+' : '' }}{{ number_format($a['unrealized_pl_pct'], 1) }}%</div>
                                 </td>
                                 <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['allocation'], 1) }}%</td>
                             </tr>
@@ -254,10 +294,10 @@
                                 <td class="pt-3">รวม</td>
                                 <td class="pt-3 text-right tabular-nums">{{ number_format($total_cost_thb, 0) }}</td>
                                 <td class="pt-3 text-right tabular-nums">{{ number_format($total_value_thb, 0) }}</td>
-                                @php $tpos = $total_pl_thb >= 0; @endphp
+                                @php $tpos = $total_unrealized_pl >= 0; @endphp
                                 <td class="pt-3 text-right tabular-nums {{ $tpos ? 'text-emerald-600' : 'text-red-500' }}">
-                                    <div>{{ $tpos ? '+' : '' }}{{ number_format($total_pl_thb, 0) }}</div>
-                                    <div class="text-xs">{{ $tpos ? '+' : '' }}{{ number_format($total_pl_percent, 1) }}%</div>
+                                    <div>{{ $tpos ? '+' : '' }}{{ number_format($total_unrealized_pl, 0) }}</div>
+                                    <div class="text-xs">{{ $tpos ? '+' : '' }}{{ number_format($total_unrealized_pct, 1) }}%</div>
                                 </td>
                                 <td class="pt-3 text-right">100%</td>
                             </tr>
@@ -265,8 +305,13 @@
                     </table>
                 </div>
             </div>
+            @else
+            <div class="glass-card p-5 text-center text-sm text-slate-500">
+                ขายหุ้นออกหมดแล้ว — ไม่มีหุ้นคงเหลือในพอร์ต (กำไรที่รับรู้แล้วแสดงด้านบน)
+            </div>
+            @endif
 
-            {{-- ตารางถือครอง (AJAX pagination) --}}
+            {{-- ตารางถือครอง / ledger ธุรกรรม (AJAX pagination) --}}
             <div class="glass-card p-6" id="holdingsContainer">
                 @include('portfolio._holdings')
             </div>
@@ -448,7 +493,39 @@ function switchMode(mode) {
         document.querySelector('[name=shares]').required = false;
     }
 }
-document.addEventListener('DOMContentLoaded', () => switchMode('amount'));
+// ── สลับ ซื้อ/ขาย ──
+function switchType(type) {
+    document.getElementById('itemType').value = type;
+    const buy = document.getElementById('buyFields');
+    const sell = document.getElementById('sellFields');
+    const submit = document.getElementById('addItemSubmit');
+    document.querySelectorAll('.type-btn').forEach(b => {
+        const on = b.dataset.type === type;
+        b.classList.toggle('border-indigo-500', on);
+        b.classList.toggle('bg-indigo-50', on);
+        b.classList.toggle('text-indigo-700', on);
+    });
+    if (type === 'sell') {
+        buy.classList.add('hidden'); sell.classList.remove('hidden');
+        buy.querySelectorAll('input').forEach(i => i.disabled = true);
+        sell.querySelectorAll('.sell-field').forEach(i => i.disabled = false);
+        sell.querySelector('[name=shares]').required = true;
+        sell.querySelector('[name=sell_price]').required = true;
+        submit.textContent = '🔴 บันทึกการขาย';
+        submit.classList.remove('bg-indigo-600','hover:bg-indigo-700');
+        submit.classList.add('bg-red-500','hover:bg-red-600');
+    } else {
+        sell.classList.add('hidden'); buy.classList.remove('hidden');
+        sell.querySelectorAll('input').forEach(i => i.disabled = true);
+        switchMode(document.querySelector('[name=mode]:checked')?.value || 'amount');
+        submit.textContent = '+ เพิ่มเข้าพอร์ต';
+        submit.classList.add('bg-indigo-600','hover:bg-indigo-700');
+        submit.classList.remove('bg-red-500','hover:bg-red-600');
+    }
+}
+document.querySelectorAll('.type-btn').forEach(b => b.addEventListener('click', () => switchType(b.dataset.type)));
+
+document.addEventListener('DOMContentLoaded', () => switchType('buy'));
 
 // ── สร้างพอร์ตใหม่ (Swal prompt) ──
 document.getElementById('newPortfolioBtn')?.addEventListener('click', async function () {
@@ -617,12 +694,15 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                 : inv ? ' <span class="text-red-500 font-normal">(ไม่พบหุ้น)</span>' : '';
             const d = inv ? 'disabled' : '';
             const curOpt = c => `<option value="THB" ${r.currency==='THB'?'selected':''}>THB</option><option value="USD" ${r.currency==='USD'?'selected':''}>USD</option>`;
+            const sell = r.type === 'sell';
+            const typeBadge = `<span class="text-xs px-1.5 py-0.5 rounded-full ${sell?'bg-red-50 text-red-600':'bg-emerald-50 text-emerald-600'}">${sell?'ขาย':'ซื้อ'}</span>`;
             const tr = document.createElement('tr');
             tr.className = inv ? 'opacity-50' : '';
             tr.dataset.stockId = r.stock_id || '';
+            tr.dataset.type = r.type || 'buy';
             tr.innerHTML = `
                 <td class="py-2 pr-2"><input type="checkbox" class="imp-chk rounded border-slate-300" ${(!dup && !inv) ? 'checked' : ''} ${d}></td>
-                <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${r.symbol}${tag}</td>
+                <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${typeBadge} ${r.symbol}${tag}</td>
                 <td class="py-2 pr-2"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
                 <td class="py-2 pr-2"><input type="number" step="any" value="${r.price}" class="imp-price w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
                 <td class="py-2 pr-2 whitespace-nowrap">
@@ -644,6 +724,7 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
             const chk = tr.querySelector('.imp-chk');
             if (!chk || !chk.checked) return;
             rows.push({
+                type:     tr.dataset.type,
                 stock_id: tr.dataset.stockId,
                 shares:   tr.querySelector('.imp-shares').value,
                 price:    tr.querySelector('.imp-price').value,
@@ -669,17 +750,18 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
 @endpush
 
 @push('scripts')
-@if(!empty($holdings))
+@if(!empty($transactions))
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const palette = ['#6366f1','#10b981','#f43f5e','#f59e0b','#06b6d4','#a855f7','#ec4899','#84cc16'];
     // ตั้ง CSS var ให้ legend สีตรงกับ chart
     palette.forEach((c, i) => document.documentElement.style.setProperty('--c' + i, c));
 
-    const labels = @json(array_map(fn($a) => $a['symbol'], $allocation));
-    const values = @json(array_map(fn($a) => round($a['value_thb'], 2), $allocation));
+    const allocEl = document.getElementById('allocChart');
+    const labels = @json(array_map(fn($a) => $a['symbol'], $positions));
+    const values = @json(array_map(fn($a) => round($a['value_thb'], 2), $positions));
 
-    new Chart(document.getElementById('allocChart'), {
+    if (allocEl && labels.length) new Chart(allocEl, {
         type: 'doughnut',
         data: {
             labels,
