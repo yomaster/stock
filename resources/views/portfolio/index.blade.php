@@ -61,22 +61,22 @@
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="glass-card p-4 text-center">
         <div class="text-xs text-slate-500 mb-1">มูลค่าพอร์ต</div>
-        <div class="text-xl font-bold text-slate-800">{{ number_format($total_value_thb, 0) }}</div>
+        <div class="text-xl font-bold text-slate-800">{{ number_format($total_value_thb, 2) }}</div>
         <div class="text-xs text-slate-400">บาท</div>
     </div>
     <div class="glass-card p-4 text-center">
         <div class="text-xs text-slate-500 mb-1">ต้นทุนคงเหลือ</div>
-        <div class="text-xl font-bold text-slate-800">{{ number_format($total_cost_thb, 0) }}</div>
+        <div class="text-xl font-bold text-slate-800">{{ number_format($total_cost_thb, 2) }}</div>
         <div class="text-xs text-slate-400">บาท</div>
     </div>
     <div class="glass-card p-4 text-center {{ $isProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
         <div class="text-xs {{ $isProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">กำไร/ขาดทุน (ยังถือ)</div>
-        <div class="text-xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_unrealized_pl, 0) }}</div>
+        <div class="text-xl font-bold {{ $isProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_unrealized_pl, 2) }}</div>
         <div class="text-xs {{ $isProfit ? 'text-emerald-500' : 'text-red-500' }}">{{ $isProfit ? '+' : '' }}{{ number_format($total_unrealized_pct, 1) }}%</div>
     </div>
     <div class="glass-card p-4 text-center {{ $rzProfit ? 'bg-emerald-50' : 'bg-red-50' }}">
         <div class="text-xs {{ $rzProfit ? 'text-emerald-600' : 'text-red-600' }} mb-1">กำไรรับรู้แล้ว (ขายไป)</div>
-        <div class="text-xl font-bold {{ $rzProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $rzProfit ? '+' : '' }}{{ number_format($total_realized_pl, 0) }}</div>
+        <div class="text-xl font-bold {{ $rzProfit ? 'text-emerald-700' : 'text-red-700' }}">{{ $rzProfit ? '+' : '' }}{{ number_format($total_realized_pl, 2) }}</div>
         <div class="text-xs text-slate-400">บาท</div>
     </div>
 </div>
@@ -210,13 +210,20 @@
                 </div>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่ <span class="text-slate-400 font-normal">(ไม่บังคับ — default วันนี้)</span></label>
-                <input type="date" name="purchase_date" max="{{ now()->toDateString() }}"
-                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                <p class="text-xs text-slate-400 mt-1">ระบบดึงราคา + อัตราแลกเปลี่ยนวันนั้นมาคำนวณให้</p>
-                @error('purchase_date') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่</label>
+                    <input type="date" name="purchase_date" max="{{ now()->toDateString() }}"
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">เวลา <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
+                    <input type="time" name="purchase_time"
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
             </div>
+            <p class="text-xs text-slate-400 -mt-2">เว้นว่าง = วันนี้ · ระบบดึงราคา+FX วันนั้น · ใส่เวลาเพื่อแยกรายการวันเดียวกัน</p>
+            @error('purchase_date') <p class="text-red-500 text-xs">{{ $message }}</p> @enderror
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">เรทแลกเปลี่ยน (FX) <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
                 <input type="number" name="fx_rate" step="any" min="1" max="200" placeholder="เว้นว่าง = เรทตลาดวันนั้น"
@@ -285,10 +292,10 @@
                                     </div>
                                     <span class="text-xs text-slate-400 ml-4.5">{{ rtrim(rtrim(number_format($a['net_shares'], 7), '0'), '.') }} หุ้น</span>
                                 </td>
-                                <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['cost_thb'], 0) }}</td>
-                                <td class="py-2.5 text-right font-medium text-slate-800 tabular-nums">{{ number_format($a['value_thb'], 0) }}</td>
+                                <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['cost_thb'], 2) }}</td>
+                                <td class="py-2.5 text-right font-medium text-slate-800 tabular-nums">{{ number_format($a['value_thb'], 2) }}</td>
                                 <td class="py-2.5 text-right tabular-nums {{ $pos ? 'text-emerald-600' : 'text-red-500' }}">
-                                    <div class="font-medium">{{ $pos ? '+' : '' }}{{ number_format($a['unrealized_pl_thb'], 0) }}</div>
+                                    <div class="font-medium">{{ $pos ? '+' : '' }}{{ number_format($a['unrealized_pl_thb'], 2) }}</div>
                                     <div class="text-xs">{{ $pos ? '+' : '' }}{{ number_format($a['unrealized_pl_pct'], 1) }}%</div>
                                 </td>
                                 <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['allocation'], 1) }}%</td>
@@ -298,11 +305,11 @@
                         <tfoot class="border-t border-slate-200">
                             <tr class="text-slate-700 font-semibold">
                                 <td class="pt-3">รวม</td>
-                                <td class="pt-3 text-right tabular-nums">{{ number_format($total_cost_thb, 0) }}</td>
-                                <td class="pt-3 text-right tabular-nums">{{ number_format($total_value_thb, 0) }}</td>
+                                <td class="pt-3 text-right tabular-nums">{{ number_format($total_cost_thb, 2) }}</td>
+                                <td class="pt-3 text-right tabular-nums">{{ number_format($total_value_thb, 2) }}</td>
                                 @php $tpos = $total_unrealized_pl >= 0; @endphp
                                 <td class="pt-3 text-right tabular-nums {{ $tpos ? 'text-emerald-600' : 'text-red-500' }}">
-                                    <div>{{ $tpos ? '+' : '' }}{{ number_format($total_unrealized_pl, 0) }}</div>
+                                    <div>{{ $tpos ? '+' : '' }}{{ number_format($total_unrealized_pl, 2) }}</div>
                                     <div class="text-xs">{{ $tpos ? '+' : '' }}{{ number_format($total_unrealized_pct, 1) }}%</div>
                                 </td>
                                 <td class="pt-3 text-right">100%</td>
@@ -402,10 +409,17 @@
                 </div>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่</label>
-                <input type="date" name="purchase_date" id="editDate" max="{{ now()->toDateString() }}"
-                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">วันที่</label>
+                    <input type="date" name="purchase_date" id="editDate" max="{{ now()->toDateString() }}"
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5">เวลา <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
+                    <input type="time" name="purchase_time" id="editTime"
+                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
             </div>
 
             <div>
@@ -619,6 +633,7 @@ function openEditModal(btn) {
     const dateEl = document.getElementById('editDate');
     if (dateEl._flatpickr) dateEl._flatpickr.setDate(d.date || null, false);
     else dateEl.value = d.date || '';
+    document.getElementById('editTime').value = d.time || '';
 
     editSwitchMode(d.mode || 'amount');
 

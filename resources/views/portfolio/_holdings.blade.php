@@ -26,10 +26,10 @@
                             {{ $isSell ? '🔴 ขาย' : '🟢 ซื้อ' }}
                         </span>
                     </div>
-                    <span class="text-xs text-slate-400 block">{{ $h['purchase_date'] ?? '—' }}</span>
+                    <span class="text-xs text-slate-400 block">{{ $h['datetime_label'] ?? '—' }}</span>
                 </td>
                 <td class="py-2.5 pr-3 text-right {{ $isSell ? 'text-red-500' : 'text-slate-600' }}">
-                    {{ $h['invested_amount'] ? ($isSell ? '−' : '') . number_format($h['invested_amount'], 0) . ' ' . $h['invested_currency'] : '—' }}
+                    {{ $h['invested_amount'] ? ($isSell ? '−' : '') . number_format($h['invested_amount'], 2) . ' ' . $h['invested_currency'] : '—' }}
                 </td>
                 {{-- shares 7 ตำแหน่ง ตัด 0 ท้ายออกให้อ่านง่าย --}}
                 <td class="py-2.5 pr-3 text-right text-slate-600">{{ rtrim(rtrim(number_format($h['shares'], 7), '0'), '.') }}</td>
@@ -47,6 +47,7 @@
                         data-currency="{{ $h['invested_currency'] ?? $h['currency'] }}"
                         data-fx="{{ $h['fx_rate'] }}"
                         data-date="{{ $h['purchase_date_raw'] }}"
+                        data-time="{{ $h['time_raw'] }}"
                         data-mode="{{ $h['invested_amount'] ? 'amount' : 'shares' }}"
                         title="แก้ไข">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>

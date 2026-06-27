@@ -9,6 +9,7 @@ use App\Models\Stock;
 use App\Services\GeminiService;
 use App\Services\PortfolioService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class PortfolioController extends Controller
@@ -105,6 +106,7 @@ class PortfolioController extends Controller
             'type'          => 'required|in:buy,sell',
             'stock_id'      => 'required|exists:stocks,id',
             'purchase_date' => 'nullable|date|before_or_equal:today',
+            'purchase_time' => 'nullable|date_format:H:i',
             'fx_rate'       => 'nullable|numeric|min:1|max:200',
         ]);
         $fxRate = $request->filled('fx_rate') ? (float) $request->input('fx_rate') : null;
@@ -112,6 +114,10 @@ class PortfolioController extends Controller
         // เลือกได้เฉพาะหุ้นที่ user ติดตาม (กัน inject stock_id ของคนอื่น)
         $stock = $this->userStocks()->findOrFail($request->input('stock_id'));
         $date  = $request->input('purchase_date') ?: now()->toDateString();
+        // ระบุเวลาด้วย → เก็บ executed_at (เพื่อแยกรายการวันเดียวกันคนละเวลา)
+        $executedAt = $request->filled('purchase_time')
+            ? Carbon::parse($date . ' ' . $request->input('purchase_time'))
+            : null;
 
         // ── ขาย: หุ้นที่ขาย + ราคาขาย + สกุล (หักออกจากพอร์ต) ──
         if ($request->input('type') === 'sell') {
@@ -131,6 +137,7 @@ class PortfolioController extends Controller
                 'invested_currency' => $data['sell_currency'],
                 'fx_rate'           => $fxRate,
                 'purchase_date'     => $date,
+                'executed_at'       => $executedAt,
             ]);
             return back()->with('success', "บันทึกการขาย {$stock->symbol} {$shares} หุ้น แล้ว");
         }
@@ -151,6 +158,7 @@ class PortfolioController extends Controller
             'purchase_price'    => $fields['purchasePrice'],
             'fx_rate'           => $fxRate,
             'purchase_date'     => $date,
+            'executed_at'       => $executedAt,
         ]);
 
         return back()->with('success', "เพิ่ม {$stock->symbol} แล้ว — {$fields['detail']}");
@@ -163,6 +171,7 @@ class PortfolioController extends Controller
         $request->validate([
             'mode'          => 'required|in:amount,shares',
             'purchase_date' => 'nullable|date|before_or_equal:today',
+            'purchase_time' => 'nullable|date_format:H:i',
             'fx_rate'       => 'nullable|numeric|min:1|max:200',
         ]);
 
@@ -181,6 +190,8 @@ class PortfolioController extends Controller
             'purchase_price'    => $fields['purchasePrice'],
             'fx_rate'           => $request->filled('fx_rate') ? (float) $request->input('fx_rate') : null,
             'purchase_date'     => $date,
+            'executed_at'       => $request->filled('purchase_time')
+                ? Carbon::parse($date . ' ' . $request->input('purchase_time')) : null,
         ]);
 
         return back()->with('success', "แก้ไข {$stock->symbol} แล้ว — {$fields['detail']}");

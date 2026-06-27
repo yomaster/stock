@@ -226,9 +226,18 @@ class PortfolioService
                 'current_price'     => $current,
                 'purchase_date'     => $item->purchase_date?->format('d/m/Y'),
                 'purchase_date_raw' => $item->purchase_date?->format('Y-m-d'),
+                // วันเวลาแสดงผล: ถ้ามี executed_at (เวลาจริง) โชว์เวลาด้วย
+                'datetime_label'    => $item->executed_at
+                    ? $item->executed_at->format('d/m/Y H:i')
+                    : $item->purchase_date?->format('d/m/Y'),
+                'time_raw'          => $item->executed_at?->format('H:i'),
+                // key สำหรับเรียง: ใช้ executed_at (มีเวลา) ถ้าไม่มีใช้วันที่ 00:00
+                'sort_key'          => $item->executed_at?->format('Y-m-d H:i:s')
+                    ?? (($item->purchase_date?->format('Y-m-d') ?? '0000-00-00') . ' 00:00:00'),
             ];
         }
-        usort($transactions, fn ($a, $b) => ($b['purchase_date_raw'] ?? '') <=> ($a['purchase_date_raw'] ?? ''));
+        // เรียงตามวันเวลา ใหม่→เก่า (รวมเวลา — วันเดียวกันคนละเวลาเรียงถูก)
+        usort($transactions, fn ($a, $b) => $b['sort_key'] <=> $a['sort_key']);
 
         return [
             'positions'            => $positions,
