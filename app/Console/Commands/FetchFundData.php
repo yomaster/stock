@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Stock;
 use App\Models\StockPrice;
+use App\Services\SettingsService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -19,10 +20,10 @@ class FetchFundData extends Command
         $symbol = strtoupper(trim($this->argument('symbol')));
         $years  = (int) $this->option('years');
 
-        // ตรวจว่ามี key ก่อน — ไม่มีไม่ควร call API
-        $key = config('services.sec.subscription_key');
+        // อ่าน key จาก Settings DB (ตั้งค่าได้ที่หน้า /settings)
+        $key = app(SettingsService::class)->get('sec.api_key');
         if (!$key) {
-            $this->error('SEC_API_KEY ไม่ได้ตั้งค่าใน .env — ลงทะเบียนฟรีที่ https://apiportal.sec.or.th แล้วสมัคร FundFactsheet product');
+            $this->error('ยังไม่ได้ตั้งค่า SEC Thailand Subscription Key — ไปที่หน้าตั้งค่า → SEC Thailand API');
             return self::FAILURE;
         }
 

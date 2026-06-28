@@ -27,6 +27,7 @@ class SettingsController extends Controller
             'line'      => ['title' => 'LINE Messaging API', 'icon' => '💬'],
             'telegram'  => ['title' => 'Telegram Bot API', 'icon' => '✈️'],
             'schedule'  => ['title' => 'ตารางเวลาส่งสรุป', 'icon' => '⏰'],
+            'sec'       => ['title' => 'SEC Thailand API (กองทุนรวม)', 'icon' => '🏦'],
             'general'   => ['title' => 'ทั่วไป', 'icon' => '⚙️'],
         ];
 

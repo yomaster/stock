@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesUserStocks;
 use App\Models\Stock;
+use App\Services\SettingsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Http;
 class FundManageController extends Controller
 {
     use ScopesUserStocks;
+
+    public function __construct(private SettingsService $settings) {}
 
     /** ค้นหากองทุนจาก SEC API (AJAX autocomplete) */
     public function search(Request $request)
@@ -20,7 +23,7 @@ class FundManageController extends Controller
             return response()->json([]);
         }
 
-        $key = config('services.sec.subscription_key');
+        $key = $this->settings->get('sec.api_key');
         if (!$key) {
             return response()->json([]);
         }
@@ -54,20 +57,7 @@ class FundManageController extends Controller
         $symbol = strtoupper(trim($validated['symbol']));
         $user   = $request->user();
 
-        // ตรวจว่ามี SEC API key — ถ้าไม่มี ยังเพิ่มกองทุนที่มีอยู่แล้วในระบบได้ แต่ดึงใหม่ไม่ได้
-        if (!config('services.sec.subscription_key')) {
-            $existing = Stock::where('symbol', $symbol)->where('asset_category', 'fund')->first();
-            if ($existing) {
-                if ($user->stocks()->whereKey($existing->id)->exists()) {
-                    return $this->respond($request, false, "กองทุน {$symbol} อยู่ในรายการของคุณแล้ว");
-                }
-                $user->stocks()->attach($existing->id);
-                return $this->respond($request, true, "เพิ่มกองทุน {$symbol} แล้ว (ใช้ NAV ที่มีอยู่)");
-            }
-            return $this->respond($request, false, 'ยังไม่ได้ตั้งค่า SEC_API_KEY ใน .env — ลงทะเบียนฟรีที่ https://apiportal.sec.or.th แล้วสมัคร FundFactsheet product');
-        }
-
-        // กองทุนมีใน catalog แล้ว → แค่ attach
+        // กองทุนมีใน catalog แล้ว → แค่ attach ไม่ต้องใช้ SEC key
         $existing = Stock::where('symbol', $symbol)->where('asset_category', 'fund')->first();
         if ($existing) {
             if ($user->stocks()->whereKey($existing->id)->exists()) {
@@ -77,7 +67,11 @@ class FundManageController extends Controller
             return $this->respond($request, true, "เพิ่มกองทุน {$symbol} แล้ว (ใช้ NAV ที่มีอยู่)");
         }
 
-        // ดึง NAV จาก SEC
+        // ยังไม่มีใน catalog → ต้องดึง NAV จาก SEC (ต้องมี key)
+        if (!$this->settings->get('sec.api_key')) {
+            return $this->respond($request, false, 'ยังไม่ได้ตั้งค่า SEC Thailand Subscription Key — ไปที่หน้า ตั้งค่า → SEC Thailand API (กองทุนรวม)');
+        }
+
         $exitCode = Artisan::call('app:fetch-fund-data', [
             'symbol'  => $symbol,
             '--years' => $validated['years'],

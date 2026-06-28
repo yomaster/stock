@@ -46,9 +46,4 @@ return [
         'channel_secret'       => env('LINE_CHANNEL_SECRET'),
     ],
 
-    // SEC Thailand API — ลงทะเบียนฟรีที่ https://apiportal.sec.or.th แล้วสมัคร FundFactsheet product
-    'sec' => [
-        'subscription_key' => env('SEC_API_KEY'),
-    ],
-
 ];

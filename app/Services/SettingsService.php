@@ -86,6 +86,12 @@ class SettingsService
             'default' => '09:00', 'help' => 'ก่อนตลาดเปิด 9:30 ET — ระบบแปลงเป็นเวลาไทยตาม DST ให้เอง',
         ],
 
+        // ── SEC Thailand API ──
+        'sec.api_key' => [
+            'group' => 'sec', 'label' => 'SEC Thailand Subscription Key', 'secret' => true,
+            'help' => 'ลงทะเบียนฟรีที่ apiportal.sec.or.th → สมัคร product "FundFactsheet" → คัดลอก subscription key',
+        ],
+
         // ── ทั่วไป ──
         'general.default_exchange_rate' => [
             'group' => 'general', 'label' => 'อัตราแลกเปลี่ยน USD→THB เริ่มต้น', 'secret' => false,
