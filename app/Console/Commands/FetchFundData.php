@@ -81,7 +81,8 @@ class FetchFundData extends Command
             );
         }
 
-        $this->info("บันทึก NAV " . count($rows) . " วันสำเร็จ — {$symbol} ({$info['name_th'] ?? ''})");
+        $nameTh = $info['name_th'] ?? '';
+        $this->info("บันทึก NAV " . count($rows) . " วันสำเร็จ — {$symbol} ({$nameTh})");
         return self::SUCCESS;
     }
 
