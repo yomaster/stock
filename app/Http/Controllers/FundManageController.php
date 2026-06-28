@@ -20,9 +20,17 @@ class FundManageController extends Controller
             return response()->json([]);
         }
 
+        $key = config('services.sec.subscription_key');
+        if (!$key) {
+            return response()->json([]);
+        }
+
         try {
             $resp = Http::timeout(10)
-                ->withHeaders(['accept' => 'application/json'])
+                ->withHeaders([
+                    'accept'                    => 'application/json',
+                    'Ocp-Apim-Subscription-Key' => $key,
+                ])
                 ->get('https://api.sec.or.th/FundFactsheet/fund/autocomplete', [
                     'keyword' => $q,
                 ]);
@@ -45,6 +53,19 @@ class FundManageController extends Controller
 
         $symbol = strtoupper(trim($validated['symbol']));
         $user   = $request->user();
+
+        // ตรวจว่ามี SEC API key — ถ้าไม่มี ยังเพิ่มกองทุนที่มีอยู่แล้วในระบบได้ แต่ดึงใหม่ไม่ได้
+        if (!config('services.sec.subscription_key')) {
+            $existing = Stock::where('symbol', $symbol)->where('asset_category', 'fund')->first();
+            if ($existing) {
+                if ($user->stocks()->whereKey($existing->id)->exists()) {
+                    return $this->respond($request, false, "กองทุน {$symbol} อยู่ในรายการของคุณแล้ว");
+                }
+                $user->stocks()->attach($existing->id);
+                return $this->respond($request, true, "เพิ่มกองทุน {$symbol} แล้ว (ใช้ NAV ที่มีอยู่)");
+            }
+            return $this->respond($request, false, 'ยังไม่ได้ตั้งค่า SEC_API_KEY ใน .env — ลงทะเบียนฟรีที่ https://apiportal.sec.or.th แล้วสมัคร FundFactsheet product');
+        }
 
         // กองทุนมีใน catalog แล้ว → แค่ attach
         $existing = Stock::where('symbol', $symbol)->where('asset_category', 'fund')->first();

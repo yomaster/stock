@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Carbon;
 
 #[Signature('app:fetch-fund-data {symbol : รหัสกองทุนไทย เช่น K-GHRMF} {--years=5 : จำนวนปีย้อนหลัง}')]
-#[Description('ดึง NAV กองทุนรวมไทยจาก SEC Thailand API')]
+#[Description('ดึง NAV กองทุนรวมไทยจาก SEC Thailand API (ต้องมี SEC_API_KEY ใน .env)')]
 class FetchFundData extends Command
 {
     public function handle(): int
@@ -19,10 +19,17 @@ class FetchFundData extends Command
         $symbol = strtoupper(trim($this->argument('symbol')));
         $years  = (int) $this->option('years');
 
+        // ตรวจว่ามี key ก่อน — ไม่มีไม่ควร call API
+        $key = config('services.sec.subscription_key');
+        if (!$key) {
+            $this->error('SEC_API_KEY ไม่ได้ตั้งค่าใน .env — ลงทะเบียนฟรีที่ https://apiportal.sec.or.th แล้วสมัคร FundFactsheet product');
+            return self::FAILURE;
+        }
+
         $this->info("Fetching Thai fund NAV: {$symbol} ({$years} years)...");
 
         // 1. ดึง fund info จาก SEC
-        $info = $this->fetchFundInfo($symbol);
+        $info = $this->fetchFundInfo($symbol, $key);
         if (!$info) {
             $this->error("ไม่พบกองทุน {$symbol} ใน SEC Thailand — ตรวจสอบรหัสกองทุนให้ถูกต้อง");
             return self::FAILURE;
@@ -44,7 +51,7 @@ class FetchFundData extends Command
         $startDate = now()->subYears($years)->format('Y-m-d');
         $endDate   = now()->format('Y-m-d');
 
-        $navData = $this->fetchNavHistory($symbol, $startDate, $endDate);
+        $navData = $this->fetchNavHistory($symbol, $key, $startDate, $endDate);
         if (empty($navData)) {
             $this->warn("ดึง NAV สำเร็จแต่ไม่มีข้อมูลย้อนหลัง — บันทึก stock record ไว้แล้ว");
             return self::SUCCESS;
@@ -87,11 +94,14 @@ class FetchFundData extends Command
     }
 
     /** ดึงข้อมูลกองทุนจาก SEC (ชื่อ, ประเภท) */
-    private function fetchFundInfo(string $symbol): ?array
+    private function fetchFundInfo(string $symbol, string $key): ?array
     {
         try {
             $resp = Http::timeout(15)
-                ->withHeaders(['accept' => 'application/json'])
+                ->withHeaders([
+                    'accept'                    => 'application/json',
+                    'Ocp-Apim-Subscription-Key' => $key,
+                ])
                 ->get("https://api.sec.or.th/FundFactsheet/fund/{$symbol}");
 
             if ($resp->failed() || empty($resp->json())) {
@@ -104,11 +114,14 @@ class FetchFundData extends Command
     }
 
     /** ดึง NAV รายวันจาก SEC */
-    private function fetchNavHistory(string $symbol, string $startDate, string $endDate): array
+    private function fetchNavHistory(string $symbol, string $key, string $startDate, string $endDate): array
     {
         try {
             $resp = Http::timeout(30)
-                ->withHeaders(['accept' => 'application/json'])
+                ->withHeaders([
+                    'accept'                    => 'application/json',
+                    'Ocp-Apim-Subscription-Key' => $key,
+                ])
                 ->get("https://api.sec.or.th/FundFactsheet/fund/{$symbol}/dailynav", [
                     'startDate' => $startDate,
                     'endDate'   => $endDate,
