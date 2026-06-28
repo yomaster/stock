@@ -13,6 +13,7 @@ use App\Http\Controllers\PortfolioImportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\FundManageController;
 use App\Http\Controllers\StockManageController;
 use App\Http\Controllers\TelegramWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -90,6 +91,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [StockManageController::class, 'store'])->name('store');
         Route::post('/{stock}/refresh', [StockManageController::class, 'refresh'])->name('refresh');
         Route::delete('/{stock}', [StockManageController::class, 'destroy'])->name('destroy');
+    });
+
+    // Fund management (เพิ่ม/ลบกองทุนรวมไทย — NAV จาก SEC API)
+    Route::middleware('permission:manage')->prefix('funds')->name('funds.')->group(function () {
+        Route::get('/search', [FundManageController::class, 'search'])->name('search');   // AJAX autocomplete
+        Route::post('/', [FundManageController::class, 'store'])->name('store');
+        Route::delete('/{stock}', [FundManageController::class, 'destroy'])->name('destroy');
     });
 
     // Stock analysis

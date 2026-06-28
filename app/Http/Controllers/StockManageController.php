@@ -13,8 +13,8 @@ class StockManageController extends Controller
 
     public function index()
     {
-        // เฉพาะหุ้นที่ user ปัจจุบันติดตาม
-        $stocks = $this->userStocks()->orderBy('symbol')->get();
+        // เฉพาะสินทรัพย์ที่ user ติดตาม — เรียงตาม category ก่อน แล้วค่อย symbol
+        $stocks = $this->userStocks()->orderBy('asset_category')->orderBy('symbol')->get();
         return view('stocks.manage', compact('stocks'));
     }
 
