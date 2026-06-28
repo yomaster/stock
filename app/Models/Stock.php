@@ -8,6 +8,17 @@ class Stock extends Model
 {
     protected $guarded = [];
 
+    /** label + emoji สำหรับแสดงใน UI */
+    public function categoryLabel(): string
+    {
+        return match($this->asset_category) {
+            'etf'   => '📦 ETF',
+            'fund'  => '🏦 กองทุน',
+            'gold'  => '🥇 ทองคำ',
+            default => '📈 หุ้น',
+        };
+    }
+
     public function prices()
     {
         return $this->hasMany(StockPrice::class);

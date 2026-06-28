@@ -76,10 +76,16 @@ class FetchStockData extends Command
             $stock = Stock::updateOrCreate(
                 ['symbol' => $symbol],
                 [
-                    'name' => $this->getStockNamePlaceholder($symbol),
-                    'currency' => $currency,
-                    'exchange' => $exchange,
-                    'type' => $instrumentType
+                    'name'           => $this->getStockNamePlaceholder($symbol),
+                    'currency'       => $currency,
+                    'exchange'       => $exchange,
+                    'type'           => $instrumentType,
+                    // จัดกลุ่ม asset_category จาก Yahoo instrumentType
+                    'asset_category' => match($instrumentType) {
+                        'ETF'        => 'etf',
+                        'MUTUALFUND' => 'fund',
+                        default      => 'stock',
+                    },
                 ]
             );
 

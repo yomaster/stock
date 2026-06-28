@@ -112,11 +112,15 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">หุ้น</label>
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">สินทรัพย์</label>
                 <select name="stock_id" required class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    <option value="">— เลือกหุ้น —</option>
-                    @foreach($stocks as $s)
-                        <option value="{{ $s->id }}">{{ $s->symbol }} — {{ $s->name }}</option>
+                    <option value="">— เลือกสินทรัพย์ —</option>
+                    @foreach($stocks->groupBy('asset_category') as $cat => $group)
+                        <optgroup label="{{ match($cat) { 'etf' => '📦 ETF', 'fund' => '🏦 กองทุน', 'gold' => '🥇 ทองคำ', default => '📈 หุ้น' } }}">
+                            @foreach($group as $s)
+                                <option value="{{ $s->id }}">{{ $s->symbol }} — {{ $s->name }}</option>
+                            @endforeach
+                        </optgroup>
                     @endforeach
                 </select>
                 @error('stock_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror

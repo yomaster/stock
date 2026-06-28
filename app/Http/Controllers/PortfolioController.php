@@ -23,7 +23,8 @@ class PortfolioController extends Controller
     public function index()
     {
         $portfolio = $this->currentPortfolio();
-        $stocks    = $this->userStocks()->orderBy('symbol')->get(); // เลือกเพิ่มได้เฉพาะหุ้นที่ติดตาม
+        // จัดกลุ่มตาม asset_category เพื่อแสดง optgroup ใน dropdown
+        $stocks    = $this->userStocks()->orderBy('asset_category')->orderBy('symbol')->get();
         $data      = $this->svc->buildHoldings($portfolio);
 
         // ledger ธุรกรรม (รายการถือครอง) แบ่งหน้า
