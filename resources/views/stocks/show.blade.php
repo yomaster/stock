@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $stock->symbol . ' — Stock AI')
+@section('title', $stock->symbol . ' — Invest AI')
 
 @section('content')
 

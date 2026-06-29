@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'เปรียบเทียบหุ้น — Stock AI')
+@section('title', 'เปรียบเทียบหุ้น — Invest AI')
 
 @section('content')
 

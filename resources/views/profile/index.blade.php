@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'โปรไฟล์ของฉัน — Stock AI')
+@section('title', 'โปรไฟล์ของฉัน — Invest AI')
 
 @section('content')
 

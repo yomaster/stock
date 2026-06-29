@@ -425,7 +425,7 @@ class BotCommandService
     /** ข้อความต้อนรับ — ส่งตอน user แอดบอทครั้งแรก (follow/start) */
     private function welcomeText(): string
     {
-        return "🎉 ยินดีต้อนรับสู่ StockAI!\n"
+        return "🎉 ยินดีต้อนรับสู่ InvestAI!\n"
             . "ผู้ช่วยวิเคราะห์หุ้นด้วย AI 🤖\n"
             . "━━━━━━━━━━━━━\n"
             . "📊 คำสั่งที่ใช้ได้:\n\n"

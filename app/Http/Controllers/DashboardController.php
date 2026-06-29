@@ -6,10 +6,13 @@ use App\Http\Controllers\Concerns\ScopesUserStocks;
 use App\Models\AnalysisResult;
 use App\Models\News;
 use App\Models\StockPrice;
+use App\Services\PortfolioService;
 
 class DashboardController extends Controller
 {
     use ScopesUserStocks;
+
+    public function __construct(private PortfolioService $portfolio) {}
 
     public function index()
     {
@@ -43,19 +46,46 @@ class DashboardController extends Controller
                 ? (($latest->close - $prev->close) / $prev->close) * 100
                 : null;
             return [
-                'id'       => $stock->id,
-                'symbol'   => $stock->symbol,
-                'name'     => $stock->name,
-                'currency' => $stock->currency,
-                'price'    => $latest?->close,
-                'change'   => $change,
+                'id'             => $stock->id,
+                'symbol'         => $stock->symbol,
+                'name'           => $stock->name,
+                'currency'       => $stock->currency,
+                'asset_category' => $stock->asset_category,
+                'price'          => $latest?->close,
+                'change'         => $change,
             ];
         });
 
+        // สรุปมูลค่าพอร์ตแยกตามชนิดสินทรัพย์ (รวมทุกพอร์ตของ user)
+        $assetBreakdown = $this->assetBreakdown(auth()->user());
+
         return view('dashboard', compact(
             'stockCount', 'priceCount', 'newsCount',
-            'latestAnalyses', 'stocks'
+            'latestAnalyses', 'stocks', 'assetBreakdown'
         ));
+    }
+
+    /**
+     * รวมมูลค่า/ต้นทุน/กำไร แยกตามชนิดสินทรัพย์ ข้ามทุกพอร์ตของ user
+     * คืน [category => ['value','cost','pnl','pnl_pct','count'], ...] เฉพาะชนิดที่มีของ
+     */
+    private function assetBreakdown($user): array
+    {
+        $agg = [];
+        foreach ($user->portfolios as $pf) {
+            foreach ($this->portfolio->buildHoldings($pf)['positions'] as $pos) {
+                $cat = $pos['asset_category'] ?? 'stock';
+                $agg[$cat] ??= ['value' => 0, 'cost' => 0, 'count' => 0];
+                $agg[$cat]['value'] += $pos['value_thb'];
+                $agg[$cat]['cost']  += $pos['cost_thb'];
+                $agg[$cat]['count']++;
+            }
+        }
+        foreach ($agg as &$b) {
+            $b['pnl']     = $b['value'] - $b['cost'];
+            $b['pnl_pct'] = $b['cost'] > 0 ? ($b['pnl'] / $b['cost']) * 100 : 0;
+        }
+        return $agg;
     }
 
     /** ข่าวที่เกี่ยวกับ symbols ที่กำหนด (news.symbols เก็บเป็น string รวม) */

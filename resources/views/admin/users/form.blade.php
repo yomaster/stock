@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', ($user->exists ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้') . ' — Stock AI')
+@section('title', ($user->exists ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้') . ' — Invest AI')
 
 @section('content')
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Stock AI')</title>
+    <title>@yield('title', 'Invest AI')</title>
 
     {{-- Google Sans + Noto Sans Thai --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +29,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/>
                         </svg>
                     </div>
-                    <span class="font-bold text-slate-800 text-base tracking-tight">Stock<span class="text-indigo-600">AI</span></span>
+                    <span class="font-bold text-slate-800 text-base tracking-tight">Invest<span class="text-indigo-600">AI</span></span>
                 </a>
 
                 {{-- Desktop Nav (ซ่อนบนจอเล็ก — ใช้แฮมเบอร์เกอร์แทน) --}}
@@ -139,7 +139,7 @@
     </main>
 
     <footer class="mt-12 pb-8 text-center text-slate-400 text-xs">
-        Stock AI &mdash; ข้อมูลเพื่อการศึกษาเท่านั้น ไม่ใช่คำแนะนำการลงทุน
+        Invest AI &mdash; ข้อมูลเพื่อการศึกษาเท่านั้น ไม่ใช่คำแนะนำการลงทุน
     </footer>
 </div>
 

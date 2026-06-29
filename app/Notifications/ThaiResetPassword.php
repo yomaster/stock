@@ -20,7 +20,7 @@ class ThaiResetPassword extends BaseResetPassword
         $expire = config('auth.passwords.' . config('auth.defaults.passwords') . '.expire', 60);
 
         return (new MailMessage)
-            ->subject('รีเซ็ตรหัสผ่าน — Stock AI')
+            ->subject('รีเซ็ตรหัสผ่าน — Invest AI')
             ->greeting('สวัสดีครับ')
             ->line('คุณได้รับอีเมลนี้เพราะมีคำขอรีเซ็ตรหัสผ่านสำหรับบัญชีของคุณ')
             ->action('ตั้งรหัสผ่านใหม่', $url)

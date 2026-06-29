@@ -136,7 +136,9 @@ class PortfolioService
                     'buy_shares' => 0, 'buy_cost_thb' => 0, 'sell_shares' => 0, 'sell_proceeds_thb' => 0,
                 ];
             }
-            $isUsd = !str_ends_with(strtoupper($stock->symbol), '.BK');
+            // ใช้สกุลเงินจริงของสินทรัพย์ (กองทุน/หุ้นไทย = THB, US = USD)
+            // เดิมเช็ค .BK suffix → กองทุน (เช่น K-GHEALTH) ไม่มี .BK เลยถูกคูณ FX ผิด
+            $isUsd = strtoupper($stock->currency) === 'USD';
             $fx    = $item->purchase_date ? $this->historicalFx($item->purchase_date->toDateString()) : $rate; // FX วันธุรกรรม
             $thb   = $this->itemThb($item, $isUsd, $fx);
 
@@ -168,7 +170,7 @@ class PortfolioService
                 continue; // ขายหมด — ไม่อยู่ในพอร์ต (realized ค้างใน total แล้ว)
             }
 
-            $isUsd   = !str_ends_with(strtoupper($stock->symbol), '.BK');
+            $isUsd   = strtoupper($stock->currency) === 'USD';
             $current = $this->livePrice($stock->symbol)
                 ?? optional(StockPrice::where('stock_id', $stock->id)->orderBy('date', 'desc')->first())->close
                 ?? 0;
@@ -183,6 +185,7 @@ class PortfolioService
             $positions[] = [
                 'symbol'            => $stock->symbol,
                 'name'              => $stock->name,
+                'asset_category'    => $stock->asset_category,
                 'currency'          => $stock->currency,
                 'net_shares'        => $netShares,
                 'avg_cost_thb'      => $avgCost,

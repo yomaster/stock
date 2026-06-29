@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', ($role->exists ? 'แก้ไขบทบาท' : 'เพิ่มบทบาท') . ' — Stock AI')
+@section('title', ($role->exists ? 'แก้ไขบทบาท' : 'เพิ่มบทบาท') . ' — Invest AI')
 
 @section('content')
 
