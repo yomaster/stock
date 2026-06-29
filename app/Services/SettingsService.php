@@ -43,6 +43,12 @@ class SettingsService
             'options' => self::GEMINI_MODELS,
             'help' => 'ใช้กับสรุปเช้า — Flash Lite เพียงพอ ประหยัด token และ RPM สูงกว่า',
         ],
+        'gemini.model_import' => [
+            'group' => 'gemini', 'label' => 'Model อ่านภาพนำเข้าพอร์ต (Vision OCR)', 'secret' => false,
+            'type' => 'select', 'default' => 'gemini-2.5-flash',
+            'options' => self::GEMINI_MODELS,
+            'help' => 'ใช้ตอนนำเข้าจากภาพ — แนะนำ Flash (vision ดี เร็ว RPM สูง) ไม่ควรใช้ Flash Lite (OCR พลาดง่าย) หรือ Pro (ช้า/เสี่ยง truncate)',
+        ],
 
         // ── Messaging Provider (เลือกใช้ LINE หรือ Telegram ทีละตัว) ──
         'messaging.provider' => [

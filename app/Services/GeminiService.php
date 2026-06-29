@@ -34,6 +34,17 @@ class GeminiService
     }
 
     /**
+     * คืน instance ใหม่ที่สลับไปใช้ import model (OCR ภาพนำเข้าพอร์ต)
+     * Flash: vision ดีพอ เร็ว RPM สูง ไม่ใช่ thinking-model (ไม่เสี่ยง truncate)
+     */
+    public function useImportModel(): static
+    {
+        $clone = clone $this;
+        $clone->model = app(SettingsService::class)->get('gemini.model_import', 'gemini-2.5-flash');
+        return $clone;
+    }
+
+    /**
      * ส่งคำสั่ง (Prompt) ไปประมวลผลที่ Gemini API
      *
      * @param string $prompt
