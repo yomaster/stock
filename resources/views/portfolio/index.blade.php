@@ -784,29 +784,37 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
         }
         data.rows.forEach(r => {
             const dup = r.status === 'duplicate', inv = r.status === 'invalid';
-            const tag = dup ? ' <span class="text-amber-500 font-normal">(ซ้ำ)</span>'
-                : inv ? ' <span class="text-red-500 font-normal">(ไม่พบหุ้น)</span>' : '';
-            const d = inv ? 'disabled' : '';
-            const curOpt = c => `<option value="THB" ${r.currency==='THB'?'selected':''}>THB</option><option value="USD" ${r.currency==='USD'?'selected':''}>USD</option>`;
+            // แถวที่อ่านได้แต่ไม่พบสินทรัพย์ → แก้รหัสแล้วติ๊กได้ (confirm จะ resolve ใหม่จาก symbol)
+            const tag = dup ? '<span class="text-amber-500">(ซ้ำ)</span>'
+                : inv ? '<span class="text-red-500">(ไม่พบ — แก้รหัสแล้วติ๊ก)</span>' : '';
+            const curOpt = () => `<option value="THB" ${r.currency==='THB'?'selected':''}>THB</option><option value="USD" ${r.currency==='USD'?'selected':''}>USD</option>`;
             const sell = r.type === 'sell';
-            const typeBadge = `<span class="text-xs px-1.5 py-0.5 rounded-full ${sell?'bg-red-50 text-red-600':'bg-emerald-50 text-emerald-600'}">${sell?'ขาย':'ซื้อ'}</span>`;
+            const typeSel = `<select class="imp-type text-xs border border-slate-200 rounded-lg px-1 py-1">
+                    <option value="buy" ${!sell?'selected':''}>ซื้อ</option>
+                    <option value="sell" ${sell?'selected':''}>ขาย</option></select>`;
+            const noteHtml = r.note ? `<div class="text-violet-500 text-[11px]">🔄 ${r.note}</div>` : '';
             const tr = document.createElement('tr');
-            tr.className = inv ? 'opacity-50' : '';
             tr.dataset.stockId = r.stock_id || '';
-            tr.dataset.type = r.type || 'buy';
             tr.dataset.note = r.note || '';
-            const noteHtml = r.note ? `<div class="text-violet-500 font-normal text-[11px]">🔄 ${r.note}</div>` : '';
             tr.innerHTML = `
-                <td class="py-2 pr-2"><input type="checkbox" class="imp-chk rounded border-slate-300" ${(!dup && !inv) ? 'checked' : ''} ${d}></td>
-                <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${typeBadge} ${r.symbol}${tag}${noteHtml}</td>
-                <td class="py-2 pr-2"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
-                <td class="py-2 pr-2"><input type="number" step="any" value="${r.price}" class="imp-price w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
-                <td class="py-2 pr-2 whitespace-nowrap">
-                    <input type="number" step="any" value="${r.amount}" class="imp-amount w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}>
-                    <select class="imp-cur border border-slate-200 rounded-lg px-1 py-1" ${d}>${curOpt()}</select>
+                <td class="py-2 pr-2 align-top"><input type="checkbox" class="imp-chk rounded border-slate-300 mt-1.5" ${(!dup && !inv) ? 'checked' : ''}></td>
+                <td class="py-2 pr-2">
+                    <div class="flex items-center gap-1">
+                        ${typeSel}
+                        <input type="text" value="${r.symbol || ''}" class="imp-symbol w-24 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 uppercase">
+                    </div>
+                    <div class="text-[11px] font-normal mt-0.5">${tag}${noteHtml}</div>
                 </td>
-                <td class="py-2 pr-2"><input type="number" step="any" value="${r.fx_rate || ''}" placeholder="ตลาด" class="imp-fx w-16 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
-                <td class="py-2"><input type="text" value="${r.datetime || ''}" class="imp-dt w-40 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>`;
+                <td class="py-2 pr-2 align-top"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1"></td>
+                <td class="py-2 pr-2 align-top"><input type="number" step="any" value="${r.price}" class="imp-price w-20 border border-slate-200 rounded-lg px-2 py-1"></td>
+                <td class="py-2 pr-2 whitespace-nowrap align-top">
+                    <input type="number" step="any" value="${r.amount}" class="imp-amount w-20 border border-slate-200 rounded-lg px-2 py-1">
+                    <select class="imp-cur border border-slate-200 rounded-lg px-1 py-1">${curOpt()}</select>
+                </td>
+                <td class="py-2 pr-2 align-top"><input type="number" step="any" value="${r.fx_rate || ''}" placeholder="ตลาด" class="imp-fx w-16 border border-slate-200 rounded-lg px-2 py-1"></td>
+                <td class="py-2 align-top"><input type="text" value="${r.datetime || ''}" class="imp-dt w-40 border border-slate-200 rounded-lg px-2 py-1"></td>`;
+            // แก้ symbol → ล้าง stock_id เดิม เพื่อให้ confirm resolve กองทุน/หุ้นใหม่ตามที่พิมพ์
+            tr.querySelector('.imp-symbol').addEventListener('input', () => { tr.dataset.stockId = ''; });
             rowsEl.appendChild(tr);
         });
     }
@@ -821,7 +829,8 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
             const chk = tr.querySelector('.imp-chk');
             if (!chk || !chk.checked) return;
             rows.push({
-                type:     tr.dataset.type,
+                type:     tr.querySelector('.imp-type').value,
+                symbol:   tr.querySelector('.imp-symbol').value,
                 stock_id: tr.dataset.stockId,
                 shares:   tr.querySelector('.imp-shares').value,
                 price:    tr.querySelector('.imp-price').value,

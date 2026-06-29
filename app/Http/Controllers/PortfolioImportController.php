@@ -13,6 +13,7 @@ use App\Services\SecFundApi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 
 /**
  * นำเข้ารายการถือครองจากภาพหน้าจอโบรก (Gemini Vision OCR)
@@ -42,6 +43,13 @@ class PortfolioImportController extends Controller
         // ใช้ model สำหรับ OCR โดยเฉพาะ (Flash) — แยกจาก model /ask
         $gemini = $gemini->useImportModel();
         $raw = $gemini->generateFromImages($this->prompt(), $images);
+
+        // log raw output ไว้ดีบักเวลาเจอ layout โบรกใหม่ที่อ่านพลาด (ดูใน laravel.log)
+        Log::info('[portfolio-import] Gemini OCR', [
+            'images' => count($images),
+            'status' => $gemini->lastStatus,
+            'raw'    => $raw,
+        ]);
         if ($raw === null) {
             $msg = $gemini->lastStatus === 429
                 ? 'โควต้า AI หมดสำหรับวันนี้ — ลองใหม่พรุ่งนี้'
@@ -106,7 +114,8 @@ class PortfolioImportController extends Controller
         $data = $request->validate([
             'rows'              => 'required|array|min:1',
             'rows.*.type'       => 'nullable|in:buy,sell',
-            'rows.*.stock_id'   => 'required|integer',
+            'rows.*.stock_id'   => 'nullable|integer',
+            'rows.*.symbol'     => 'nullable|string|max:60',
             'rows.*.shares'     => 'required|numeric|min:0.0000001',
             'rows.*.price'      => 'nullable|numeric|min:0',
             'rows.*.amount'     => 'nullable|numeric|min:0',
@@ -116,15 +125,26 @@ class PortfolioImportController extends Controller
             'rows.*.note'       => 'nullable|string|max:255',
         ]);
 
-        $portfolio = $this->currentPortfolio();
+        $portfolio  = $this->currentPortfolio();
+        $user       = $request->user();
         $trackedIds = $this->userStocks()->pluck('stocks.id')->all();
 
         $inserted = 0;
         $skipped  = 0;
 
         foreach ($data['rows'] as $r) {
-            $stock = Stock::find($r['stock_id']);
-            // กัน inject: ต้องเป็นหุ้นที่ user ติดตาม
+            $stock = !empty($r['stock_id']) ? Stock::find($r['stock_id']) : null;
+
+            // stock_id ไม่มี/ไม่ใช่ของ user (เช่น user แก้ symbol ใน preview หรือแถวที่ตอนแรกหาไม่เจอ)
+            // → resolve ใหม่จาก symbol ที่พิมพ์ (รองรับทั้งหุ้น Yahoo และกองทุน SEC)
+            if ((!$stock || !in_array($stock->id, $trackedIds)) && !empty($r['symbol'])) {
+                [$stock] = $this->ensureTracked($user, strtoupper(trim($r['symbol'])));
+                if ($stock) {
+                    $trackedIds[] = $stock->id;
+                }
+            }
+
+            // กัน inject: ต้องเป็นสินทรัพย์ที่ user ติดตาม
             if (!$stock || !in_array($stock->id, $trackedIds)) {
                 $skipped++;
                 continue;
