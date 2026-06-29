@@ -29,6 +29,12 @@ Schedule::command('app:send-summary --market=US')
 // ── แจ้งเตือนราคา/วอลุ่มผิดปกติระหว่างวัน ทุก 30 นาที (วันทำการ) ──
 Schedule::command('app:check-alerts')->weekdays()->everyThirtyMinutes();
 
+// ── กองทุนรวม (SEC) ──
+// sync catalog รายชื่อกองทุนรายสัปดาห์ (เปลี่ยนไม่บ่อย) — ไว้ค้น autocomplete
+Schedule::command('app:sync-fund-catalog')->weeklyOn(0, '05:00')->timezone('Asia/Bangkok');
+// อัปเดต NAV ล่าสุดของกองที่ติดตาม ทุกเช้า (ก่อนสรุป)
+Schedule::command('app:refresh-fund-nav')->dailyAt('06:05')->timezone('Asia/Bangkok');
+
 // ── ระบาย queue (เช่น /ask) ทุกนาที — ไม่ต้องมี worker ค้างตลอด ──
 Schedule::command('queue:work --stop-when-empty --tries=1 --max-time=55')
     ->everyMinute()->withoutOverlapping();

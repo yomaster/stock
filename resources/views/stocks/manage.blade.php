@@ -77,6 +77,8 @@
                         autocomplete="off"
                         class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400
                                focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white/70">
+                    {{-- proj_id ของกองทุนที่เลือกจากรายการ (กัน search ซ้ำตอน store) --}}
+                    <input type="hidden" id="fundProjId" name="proj_id" value="">
                     {{-- Autocomplete dropdown --}}
                     <ul id="fundSuggestions"
                         class="hidden absolute z-50 mt-1 w-full bg-white rounded-xl shadow-lg border border-slate-100 max-h-56 overflow-y-auto text-sm">
@@ -114,18 +116,31 @@
                 <p class="text-slate-400 text-sm">ยังไม่มีสินทรัพย์ — เพิ่มจากแบบฟอร์มด้านซ้าย</p>
             </div>
         @else
-            <div class="space-y-2">
-                @foreach($stocks as $stock)
-                @php
-                    $isStock = in_array($stock->asset_category, ['stock', 'etf']);
-                    $isFund  = $stock->asset_category === 'fund';
-                    $badge   = match($stock->asset_category) {
-                        'etf'   => ['label' => 'ETF',    'cls' => 'bg-blue-100 text-blue-600'],
-                        'fund'  => ['label' => 'กองทุน', 'cls' => 'bg-emerald-100 text-emerald-600'],
-                        'gold'  => ['label' => 'ทองคำ',  'cls' => 'bg-yellow-100 text-yellow-600'],
-                        default => ['label' => 'หุ้น',   'cls' => 'bg-indigo-100 text-indigo-600'],
-                    };
-                @endphp
+            @php
+                // เรียงลำดับ section ตามชนิดสินทรัพย์ (controller เรียง asset_category มาแล้ว)
+                $sections = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุนรวม', 'gold' => '🥇 ทองคำ'];
+                $grouped  = $stocks->groupBy('asset_category');
+            @endphp
+            <div class="space-y-6">
+            @foreach($sections as $cat => $secLabel)
+                @php $items = $grouped->get($cat); @endphp
+                @continue(!$items || $items->isEmpty())
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                        {{ $secLabel }} <span class="text-slate-400 font-normal">· {{ $items->count() }} รายการ</span>
+                    </h3>
+                    <div class="space-y-2">
+                    @foreach($items as $stock)
+                    @php
+                        $isStock = in_array($stock->asset_category, ['stock', 'etf']);
+                        $isFund  = $stock->asset_category === 'fund';
+                        $badge   = match($stock->asset_category) {
+                            'etf'   => ['label' => 'ETF',    'cls' => 'bg-blue-100 text-blue-600'],
+                            'fund'  => ['label' => 'กองทุน', 'cls' => 'bg-emerald-100 text-emerald-600'],
+                            'gold'  => ['label' => 'ทองคำ',  'cls' => 'bg-yellow-100 text-yellow-600'],
+                            default => ['label' => 'หุ้น',   'cls' => 'bg-indigo-100 text-indigo-600'],
+                        };
+                    @endphp
                 <div class="flex items-center justify-between p-3.5 bg-white/60 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition group">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center">
@@ -192,8 +207,11 @@
                         @endif
                     </div>
                 </div>
-                @endforeach
-            </div>
+                    @endforeach
+                    </div>{{-- /space-y-2 --}}
+                </div>{{-- /section --}}
+            @endforeach
+            </div>{{-- /space-y-6 --}}
         @endif
     </div>
 </div>
@@ -245,6 +263,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Fund form + SEC autocomplete ────────────────────────────────────────
     const fundForm       = document.getElementById('addFundForm');
     const fundInput      = document.getElementById('fundSymbolInput');
+    const fundProjId     = document.getElementById('fundProjId');
     const fundSuggestions = document.getElementById('fundSuggestions');
     const fundBtn        = document.getElementById('addFundBtn');
     const fundBtnText    = document.getElementById('addFundBtnText');
@@ -254,6 +273,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     fundInput.addEventListener('input', function () {
         clearTimeout(debounceTimer);
+        fundProjId.value = '';   // พิมพ์เอง = ยกเลิก proj_id ที่เคยเลือก (กันส่งค่าค้าง)
         const q = this.value.trim();
         if (q.length < 2) { hideSuggestions(); return; }
 
@@ -273,12 +293,14 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!items.length) { hideSuggestions(); return; }
 
         items.forEach(item => {
+            const abbr = item.proj_abbr_name ?? '';
             const li = document.createElement('li');
             li.className = 'px-3.5 py-2.5 hover:bg-emerald-50 cursor-pointer border-b border-slate-50 last:border-0';
-            li.innerHTML = `<span class="font-semibold text-slate-800">${item.fund_abbr_name ?? item.fund_id ?? ''}</span>
-                            <span class="text-slate-400 ml-2 text-xs">${item.name_th ?? ''}</span>`;
+            li.innerHTML = `<span class="font-semibold text-slate-800">${abbr}</span>
+                            <span class="text-slate-400 ml-2 text-xs">${item.proj_name_th ?? ''}</span>`;
             li.addEventListener('click', () => {
-                fundInput.value = item.fund_abbr_name ?? item.fund_id ?? '';
+                fundInput.value  = abbr;
+                fundProjId.value = item.proj_id ?? '';   // จำ proj_id ไว้ส่งตอน submit
                 hideSuggestions();
             });
             fundSuggestions.appendChild(li);

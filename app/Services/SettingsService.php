@@ -86,10 +86,15 @@ class SettingsService
             'default' => '09:00', 'help' => 'ก่อนตลาดเปิด 9:30 ET — ระบบแปลงเป็นเวลาไทยตาม DST ให้เอง',
         ],
 
-        // ── SEC Thailand API ──
-        'sec.api_key' => [
-            'group' => 'sec', 'label' => 'SEC Thailand Subscription Key', 'secret' => true,
-            'help' => 'ลงทะเบียนฟรีที่ apiportal.sec.or.th → สมัคร product "FundFactsheet" → คัดลอก subscription key',
+        // ── SEC Thailand API (กองทุนรวม) ──
+        // สมัครฟรีที่ portal ใหม่ secopendata.sec.or.th — แต่ละ product มี subscription key แยก
+        'sec.factsheet_key' => [
+            'group' => 'sec', 'label' => 'FundFactsheet Key', 'secret' => true,
+            'help' => 'subscription key ของ product "FundFactsheet" — ใช้ดึงรายชื่อ บลจ./กองทุน',
+        ],
+        'sec.dailyinfo_key' => [
+            'group' => 'sec', 'label' => 'FundDailyInfo Key', 'secret' => true,
+            'help' => 'subscription key ของ product "FundDailyInfo" — ใช้ดึง NAV รายวัน',
         ],
 
         // ── ทั่วไป ──

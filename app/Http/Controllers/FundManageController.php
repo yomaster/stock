@@ -3,19 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesUserStocks;
+use App\Jobs\FetchFundNavJob;
+use App\Models\SecFund;
 use App\Models\Stock;
-use App\Services\SettingsService;
+use App\Services\SecFundApi;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Http;
 
 class FundManageController extends Controller
 {
     use ScopesUserStocks;
 
-    public function __construct(private SettingsService $settings) {}
+    public function __construct(private SecFundApi $sec) {}
 
-    /** ค้นหากองทุนจาก SEC API (AJAX autocomplete) */
+    /**
+     * ค้นหากองทุนจาก catalog ในเครื่อง (sec_funds) — SEC ไม่มี search-by-name endpoint
+     * catalog sync ผ่าน `php artisan app:sync-fund-catalog`
+     */
     public function search(Request $request)
     {
         $q = trim($request->input('q', ''));
@@ -23,41 +26,32 @@ class FundManageController extends Controller
             return response()->json([]);
         }
 
-        $key = $this->settings->get('sec.api_key');
-        if (!$key) {
-            return response()->json([]);
-        }
+        $rows = SecFund::query()
+            ->where('fund_status', 'Registered')
+            ->where(function ($w) use ($q) {
+                $w->where('proj_abbr_name', 'like', "%{$q}%")
+                  ->orWhere('proj_name_th', 'like', "%{$q}%");
+            })
+            ->orderByRaw('proj_abbr_name like ? desc', ["{$q}%"]) // ขึ้นต้นตรงมาก่อน
+            ->limit(10)
+            ->get(['proj_id', 'proj_abbr_name', 'proj_name_th']);
 
-        try {
-            $resp = Http::timeout(10)
-                ->withHeaders([
-                    'accept'                    => 'application/json',
-                    'Ocp-Apim-Subscription-Key' => $key,
-                ])
-                ->get('https://api.sec.or.th/FundFactsheet/fund/autocomplete', [
-                    'keyword' => $q,
-                ]);
-
-            $results = $resp->successful() ? ($resp->json() ?? []) : [];
-            // คืน [{fund_id, name_th, fund_abbr_name}, ...]
-            return response()->json(array_slice($results, 0, 10));
-        } catch (\Throwable) {
-            return response()->json([]);
-        }
+        return response()->json($rows);
     }
 
-    /** เพิ่มกองทุนเข้าระบบ + ดึง NAV ย้อนหลัง */
+    /** เพิ่มกองทุนเข้าระบบ + สั่ง backfill NAV ผ่าน queue */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'symbol' => 'required|string|max:30',
-            'years'  => 'required|integer|min:1|max:20',
+            'symbol'  => 'required|string|max:60',
+            'proj_id' => 'nullable|string|max:60',
+            'years'   => 'required|integer|min:1|max:20',
         ]);
 
         $symbol = strtoupper(trim($validated['symbol']));
         $user   = $request->user();
 
-        // กองทุนมีใน catalog แล้ว → แค่ attach ไม่ต้องใช้ SEC key
+        // กองทุนมีใน catalog แล้ว → แค่ attach (ไม่ต้องใช้ key/ดึงซ้ำ)
         $existing = Stock::where('symbol', $symbol)->where('asset_category', 'fund')->first();
         if ($existing) {
             if ($user->stocks()->whereKey($existing->id)->exists()) {
@@ -67,23 +61,52 @@ class FundManageController extends Controller
             return $this->respond($request, true, "เพิ่มกองทุน {$symbol} แล้ว (ใช้ NAV ที่มีอยู่)");
         }
 
-        // ยังไม่มีใน catalog → ต้องดึง NAV จาก SEC (ต้องมี key)
-        if (!$this->settings->get('sec.api_key')) {
-            return $this->respond($request, false, 'ยังไม่ได้ตั้งค่า SEC Thailand Subscription Key — ไปที่หน้า ตั้งค่า → SEC Thailand API (กองทุนรวม)');
+        // resolve กองทุนจาก catalog (sec_funds) — ใช้ proj_id ที่เลือกมา หรือค้นจากชื่อย่อ
+        $fund = $validated['proj_id']
+            ? SecFund::where('proj_id', $validated['proj_id'])->first()
+            : SecFund::where('proj_abbr_name', $symbol)->first();
+
+        if (!$fund) {
+            return $this->respond($request, false, "ไม่พบกองทุน {$symbol} ใน catalog — ถ้ายังไม่เคย sync ให้รัน `php artisan app:sync-fund-catalog` ก่อน แล้วเลือกจากรายการที่ขึ้นมา");
         }
 
-        $exitCode = Artisan::call('app:fetch-fund-data', [
-            'symbol'  => $symbol,
-            '--years' => $validated['years'],
+        $projId = $fund->proj_id;
+        $symbol = strtoupper($fund->proj_abbr_name);
+        $nameTh = $fund->proj_name_th;
+
+        // ต้องมี FundDailyInfo key เพื่อดึง NAV จริง
+        if (!$this->sec->hasDailyInfoKey()) {
+            return $this->respond($request, false, 'ยังไม่ได้ตั้งค่า FundDailyInfo Key — ไปที่หน้า ตั้งค่า → SEC Thailand API');
+        }
+
+        // เลือก class ตัวแทนของกอง (NAV คืนหลาย class ปนกัน) — ทำตอนนี้เพื่อ fail เร็วถ้าไม่มี NAV
+        $navClass = $this->sec->pickNavClass($projId);
+        if (!$navClass) {
+            return $this->respond($request, false, "ยังไม่มีข้อมูล NAV ของกองทุน {$symbol} ใน SEC");
+        }
+
+        // สร้าง Stock record (ยังไม่มี NAV — job จะ backfill ให้)
+        $stock = Stock::create([
+            'symbol'         => $symbol,
+            'name'           => $nameTh ?: $symbol,
+            'currency'       => 'THB',
+            'exchange'       => 'SEC_TH',
+            'type'           => 'MUTUALFUND',
+            'asset_category' => 'fund',
+            'sec_proj_id'    => $projId,
+            'sec_nav_class'  => $navClass,
         ]);
-
-        $stock = Stock::where('symbol', $symbol)->first();
-        if (!$stock || $exitCode !== 0) {
-            return $this->respond($request, false, "ไม่พบกองทุน {$symbol} ใน SEC Thailand — ตรวจสอบรหัสให้ถูกต้อง เช่น K-GHRMF, KFLTF-A");
-        }
-
         $user->stocks()->syncWithoutDetaching([$stock->id]);
-        return $this->respond($request, true, "เพิ่มกองทุน {$symbol} สำเร็จ พร้อม NAV ย้อนหลัง {$validated['years']} ปี");
+
+        // สั่งดึง NAV ย้อนหลังแบบ background (ทยอยเข้า ทุกนาทีตาม scheduler)
+        FetchFundNavJob::dispatch(
+            $stock->id,
+            $projId,
+            $navClass,
+            now()->subYears((int) $validated['years'])->format('Y-m-d'),
+        );
+
+        return $this->respond($request, true, "เพิ่มกองทุน {$symbol} แล้ว — กำลังดึง NAV ย้อนหลัง {$validated['years']} ปีในเบื้องหลัง (ทยอยอัปเดต)");
     }
 
     /** เลิกติดตามกองทุน */
@@ -95,7 +118,7 @@ class FundManageController extends Controller
         auth()->user()->stocks()->detach($stock->id);
 
         if ($stock->users()->count() === 0) {
-            $stock->delete();
+            $stock->delete(); // cascade ลบ NAV ใน stock_prices ด้วย
             return back()->with('success', "ลบกองทุน {$symbol} ออกจากระบบแล้ว");
         }
 
