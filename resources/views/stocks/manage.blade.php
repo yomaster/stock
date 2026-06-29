@@ -104,6 +104,22 @@
             </form>
         </div>
 
+        {{-- Track Gold (singleton — ราคา GTA) --}}
+        <div class="glass-card p-6">
+            <h2 class="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                <span class="w-6 h-6 bg-amber-100 text-amber-600 rounded-md flex items-center justify-center text-xs font-bold">+</span>
+                เพิ่มทองคำ
+            </h2>
+            <p class="text-xs text-slate-400 mb-4">ทองคำแท่ง 96.5% · ราคาอ้างอิงสมาคมค้าทองคำ (GTA) · หน่วยเป็นบาททอง</p>
+            <form method="POST" action="{{ route('manage.gold') }}">
+                @csrf
+                <button type="submit"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 rounded-xl text-sm transition shadow-sm active:scale-[0.98]">
+                    🥇 ติดตามทองคำแท่ง 96.5%
+                </button>
+            </form>
+        </div>
+
     </div>{{-- /Left column --}}
 
     {{-- Asset List (Stocks + Funds) --}}

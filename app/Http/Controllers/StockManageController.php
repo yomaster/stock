@@ -74,6 +74,23 @@ class StockManageController extends Controller
         return back()->with($ok ? 'success' : 'error', $message);
     }
 
+    /** ติดตามทองคำ (singleton asset) — attach ให้ user ปัจจุบัน */
+    public function trackGold(Request $request)
+    {
+        $gold = Stock::where('symbol', 'GOLD')->where('asset_category', 'gold')->first();
+        if (!$gold) {
+            return back()->with('error', 'ยังไม่มีข้อมูลทองคำในระบบ');
+        }
+
+        $user = $request->user();
+        if ($user->stocks()->whereKey($gold->id)->exists()) {
+            return back()->with('error', 'คุณติดตามทองคำอยู่แล้ว');
+        }
+
+        $user->stocks()->attach($gold->id);
+        return back()->with('success', 'เพิ่มทองคำแท่ง 96.5% เข้ารายการแล้ว — เพิ่มเข้าพอร์ตได้จากหน้าพอร์ต');
+    }
+
     public function refresh(Stock $stock, Request $request)
     {
         $this->guardTracksStock($stock); // เฉพาะหุ้นที่ตัวเองติดตาม

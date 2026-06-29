@@ -35,6 +35,9 @@ Schedule::command('app:sync-fund-catalog')->weeklyOn(0, '05:00')->timezone('Asia
 // อัปเดต NAV ล่าสุดของกองที่ติดตาม ทุกเช้า (ก่อนสรุป)
 Schedule::command('app:refresh-fund-nav')->dailyAt('06:05')->timezone('Asia/Bangkok');
 
+// ── ทองคำ (GTA) ── ราคาทองขยับระหว่างวัน → ดึงทุก 30 นาที (จ.-ศ.)
+Schedule::command('app:fetch-gold-price --days=2')->weekdays()->everyThirtyMinutes()->timezone('Asia/Bangkok');
+
 // ── ระบาย queue (เช่น /ask) ทุกนาที — ไม่ต้องมี worker ค้างตลอด ──
 Schedule::command('queue:work --stop-when-empty --tries=1 --max-time=55')
     ->everyMinute()->withoutOverlapping();

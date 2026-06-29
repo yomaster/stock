@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Portfolio;
+use App\Models\Stock;
 use App\Models\StockPrice;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +21,25 @@ class PortfolioService
     public function exchangeRate(): float
     {
         return (float) $this->settings->get('general.default_exchange_rate', 33);
+    }
+
+    /**
+     * ราคาปัจจุบันของสินทรัพย์
+     * - หุ้น/ETF: ราคาสดจาก Yahoo (fallback ราคาล่าสุดใน DB)
+     * - กองทุน/ทองคำ: ใช้ราคาล่าสุดใน DB เท่านั้น (NAV / GTA)
+     *   ⚠️ ห้ามยิง Yahoo เพราะ symbol อาจชนหุ้นจริง (เช่น "GOLD" = Barrick Gold ~$40)
+     */
+    private function currentPrice(Stock $stock): ?float
+    {
+        if (in_array($stock->asset_category, ['stock', 'etf'], true)) {
+            $live = $this->livePrice($stock->symbol);
+            if ($live !== null) {
+                return $live;
+            }
+        }
+        return optional(
+            StockPrice::where('stock_id', $stock->id)->orderBy('date', 'desc')->first()
+        )->close;
     }
 
     /** ราคาหุ้นสด (near real-time) จาก Yahoo regularMarketPrice — cache 3 นาที */
@@ -171,9 +191,7 @@ class PortfolioService
             }
 
             $isUsd   = strtoupper($stock->currency) === 'USD';
-            $current = $this->livePrice($stock->symbol)
-                ?? optional(StockPrice::where('stock_id', $stock->id)->orderBy('date', 'desc')->first())->close
-                ?? 0;
+            $current = $this->currentPrice($stock) ?? 0;
             $priceMap[$sid] = $current;
 
             $valueThb = $netShares * $current * ($isUsd ? $rate : 1);
@@ -211,8 +229,7 @@ class PortfolioService
                 continue;
             }
             $current = $priceMap[$stock->id]
-                ?? $this->livePrice($stock->symbol)
-                ?? optional(StockPrice::where('stock_id', $stock->id)->orderBy('date', 'desc')->first())->close
+                ?? $this->currentPrice($stock)
                 ?? $item->purchase_price;
 
             $transactions[] = [

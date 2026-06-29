@@ -127,7 +127,7 @@
                     @foreach($stocks->groupBy('asset_category') as $cat => $group)
                         <optgroup label="{{ match($cat) { 'etf' => '📦 ETF', 'fund' => '🏦 กองทุน', 'gold' => '🥇 ทองคำ', default => '📈 หุ้น' } }}">
                             @foreach($group as $s)
-                                <option value="{{ $s->id }}">{{ $s->symbol }} — {{ $s->name }}</option>
+                                <option value="{{ $s->id }}" data-cat="{{ $s->asset_category }}">{{ $s->symbol }} — {{ $s->name }}</option>
                             @endforeach
                         </optgroup>
                     @endforeach
@@ -144,13 +144,13 @@
                     <label class="cursor-pointer">
                         <input type="radio" name="mode" value="amount" checked class="peer sr-only" onchange="switchMode('amount')">
                         <div class="border border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 rounded-xl py-2.5 text-center text-xs font-medium text-slate-600 peer-checked:text-indigo-700 transition">
-                            💵 ตามจำนวนเงิน
+                            <span id="lblModeAmount">💵 ตามจำนวนเงิน</span>
                         </div>
                     </label>
                     <label class="cursor-pointer">
                         <input type="radio" name="mode" value="shares" class="peer sr-only" onchange="switchMode('shares')">
                         <div class="border border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 rounded-xl py-2.5 text-center text-xs font-medium text-slate-600 peer-checked:text-indigo-700 transition">
-                            📊 ตามจำนวนหุ้น
+                            <span id="lblModeShares">📊 ตามจำนวนหุ้น</span>
                         </div>
                     </label>
                 </div>
@@ -164,7 +164,7 @@
                         class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     @error('invested_amount') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
-                <div>
+                <div id="amountCurrencyWrap">
                     <label class="block text-sm font-medium text-slate-600 mb-1.5">สกุลเงินที่จ่าย</label>
                     <div class="grid grid-cols-2 gap-2">
                         @foreach(['THB' => '🇹🇭 บาท', 'USD' => '🇺🇸 ดอลลาร์'] as $code => $label)
@@ -183,13 +183,13 @@
             {{-- โหมดจำนวนหุ้น (รวบรัด) --}}
             <div id="mode-shares" class="space-y-4 hidden">
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนหุ้นที่ถืออยู่</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5"><span id="lblBuyShares">จำนวนหุ้นที่ถืออยู่</span></label>
                     <input type="number" name="shares" step="any" min="0.0001" placeholder="เช่น 0.5 (เศษหุ้นได้)" disabled
                         class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     @error('shares') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1.5">ต้นทุนเฉลี่ย/หุ้น <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5"><span id="lblAvgCost">ต้นทุนเฉลี่ย/หุ้น</span> <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
                     <input type="number" name="avg_cost" step="any" min="0" placeholder="เว้นว่าง = ใช้ราคาปัจจุบันเป็นฐาน" disabled
                         class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     <p class="text-xs text-slate-400 mt-1">สกุลของหุ้น (ไทย=บาท, US=ดอลลาร์) · ถ้าไม่รู้ปล่อยว่างได้</p>
@@ -200,12 +200,12 @@
             {{-- SELL fields (ซ่อนเมื่อเลือกซื้อ) --}}
             <div id="sellFields" class="space-y-4 hidden">
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1.5">จำนวนหุ้นที่ขาย</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5"><span id="lblSellShares">จำนวนหุ้นที่ขาย</span></label>
                     <input type="number" name="shares" step="any" min="0.0000001" placeholder="เช่น 0.5 (เศษหุ้นได้)" disabled
                         class="sell-field w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1.5">ราคาขาย/หุ้น</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-1.5"><span id="lblSellPrice">ราคาขาย/หุ้น</span></label>
                     <input type="number" name="sell_price" step="any" min="0.0000001" placeholder="ราคาที่ขายได้จริง" disabled
                         class="sell-field w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     <p class="text-xs text-slate-400 mt-1">สกุลของหุ้น (ไทย=บาท, US=ดอลลาร์)</p>
@@ -339,7 +339,7 @@
                                         <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: var(--c{{ $i }})"></span>
                                         <span class="font-semibold text-slate-700">{{ $a['symbol'] }}</span>
                                     </div>
-                                    <span class="text-xs text-slate-400 ml-4.5">{{ rtrim(rtrim(number_format($a['net_shares'], 7), '0'), '.') }} หน่วย/หุ้น</span>
+                                    <span class="text-xs text-slate-400 ml-4.5">{{ rtrim(rtrim(number_format($a['net_shares'], 7), '0'), '.') }} {{ ($a['asset_category'] ?? '') === 'gold' ? 'บาททอง' : 'หน่วย/หุ้น' }}</span>
                                 </td>
                                 <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['cost_thb'], 2) }}</td>
                                 <td class="py-2.5 text-right font-medium text-slate-800 tabular-nums">{{ number_format($a['value_thb'], 2) }}</td>
@@ -602,6 +602,31 @@ function switchType(type) {
 document.querySelectorAll('.type-btn').forEach(b => b.addEventListener('click', () => switchType(b.dataset.type)));
 
 document.addEventListener('DOMContentLoaded', () => switchType('buy'));
+
+// ── ปรับ label ฟอร์มตามชนิดสินทรัพย์ที่เลือก (ทอง = ออมทอง/เต็มบาท/บาททอง) ──
+(function () {
+    const sel = document.querySelector('#addItemForm [name=stock_id]');
+    if (!sel) return;
+    const GOLD = { amount: '💰 ออมทอง', shares: '🥇 เต็มบาท', buyShares: 'น้ำหนัก (บาททอง)',
+        avgCost: 'ต้นทุนเฉลี่ย/บาททอง', sellShares: 'น้ำหนักที่ขาย (บาททอง)', sellPrice: 'ราคาขาย/บาททอง' };
+    const STOCK = { amount: '💵 ตามจำนวนเงิน', shares: '📊 ตามจำนวนหุ้น', buyShares: 'จำนวนหุ้นที่ถืออยู่',
+        avgCost: 'ต้นทุนเฉลี่ย/หุ้น', sellShares: 'จำนวนหุ้นที่ขาย', sellPrice: 'ราคาขาย/หุ้น' };
+    const set = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
+    function update() {
+        const opt = sel.options[sel.selectedIndex];
+        const isGold = !!opt && opt.dataset.cat === 'gold';
+        const L = isGold ? GOLD : STOCK;
+        set('lblModeAmount', L.amount);  set('lblModeShares', L.shares);
+        set('lblBuyShares', L.buyShares); set('lblAvgCost', L.avgCost);
+        set('lblSellShares', L.sellShares); set('lblSellPrice', L.sellPrice);
+        // ทองคำเป็น THB เสมอ → ซ่อนตัวเลือกสกุลเงิน + บังคับบาท
+        const cur = document.getElementById('amountCurrencyWrap');
+        if (cur) cur.classList.toggle('hidden', isGold);
+        if (isGold) { const thb = document.querySelector('#addItemForm [name=invested_currency][value=THB]'); if (thb) thb.checked = true; }
+    }
+    sel.addEventListener('change', update);
+    update();
+})();
 
 // ── ตัวเลือกประเภทพอร์ต (optional) ใช้ร่วม create/rename ──
 function portfolioCatOptions(cur) {
