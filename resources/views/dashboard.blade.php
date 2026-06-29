@@ -78,7 +78,7 @@
         <div class="lg:col-span-3 glass-card p-6">
             <div class="flex items-center justify-between mb-5">
                 <h2 class="font-semibold text-slate-800">สินทรัพย์ที่ติดตาม</h2>
-                <a href="{{ route('stocks.index') }}" class="text-indigo-600 text-xs font-medium hover:underline">ดูทั้งหมด →</a>
+                <a href="{{ route('assets.index') }}" class="text-indigo-600 text-xs font-medium hover:underline">ดูทั้งหมด →</a>
             </div>
             @php
                 $waSections = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุนรวม', 'gold' => '🥇 ทองคำ'];
@@ -94,7 +94,7 @@
                     </h3>
                     <div class="space-y-2">
                     @foreach($items as $s)
-                    <a href="{{ route('stocks.show', $s['id']) }}"
+                    <a href="{{ route('assets.show', $s['id']) }}"
                        class="flex items-center justify-between p-3 bg-white/50 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-white transition group">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center shrink-0">
@@ -139,7 +139,7 @@
                     <div class="flex items-start gap-3 p-3 bg-white/50 rounded-xl border border-slate-100">
                         <div>
                             <div class="flex items-center gap-2 mb-1">
-                                <a href="{{ route('stocks.show', $a->stock_id) }}" class="text-sm font-bold text-slate-800 hover:text-indigo-600">{{ $a->stock?->symbol }}</a>
+                                <a href="{{ route('assets.show', $a->stock_id) }}" class="text-sm font-bold text-slate-800 hover:text-indigo-600">{{ $a->stock?->symbol }}</a>
                                 @php
                                     $ratingColor = match($a->rating) {
                                         'Buy'   => 'bg-emerald-100 text-emerald-700',
@@ -161,7 +161,7 @@
                     <div class="w-14 h-14 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-3 text-2xl">🤖</div>
                     <p class="text-slate-500 text-sm font-medium">ยังไม่มีผลวิเคราะห์ AI</p>
                     <p class="text-slate-400 text-xs mt-1 max-w-xs">ไปที่หน้าหุ้นรายตัว แล้วกดปุ่ม "AI วิเคราะห์" เพื่อเริ่มเก็บผลวิเคราะห์ของคุณ</p>
-                    <a href="{{ route('stocks.index') }}" class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                    <a href="{{ route('assets.index') }}" class="mt-4 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
                         ดูหุ้นทั้งหมด →
                     </a>
                 </div>

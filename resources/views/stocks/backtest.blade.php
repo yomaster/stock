@@ -5,7 +5,7 @@
 @section('content')
 
 <div class="mb-6">
-    <a href="{{ route('stocks.show', $stock) }}" class="text-slate-400 hover:text-slate-600 text-xs font-medium">← {{ $stock->symbol }}</a>
+    <a href="{{ route('assets.show', $stock) }}" class="text-slate-400 hover:text-slate-600 text-xs font-medium">← {{ $stock->symbol }}</a>
     <h1 class="text-2xl font-bold text-slate-900 mt-2">DCA Backtest — {{ $stock->symbol }}</h1>
     <p class="text-slate-500 text-sm mt-0.5">จำลองการลงทุนแบบ DCA ย้อนหลัง พร้อมคิดเงินปันผลทบต้น</p>
 </div>
@@ -15,7 +15,7 @@
     {{-- Form --}}
     <div class="glass-card p-6">
         <h2 class="font-semibold text-slate-800 mb-5">ตั้งค่าการจำลอง</h2>
-        <form method="POST" action="{{ route('stocks.backtest.run', $stock) }}" class="space-y-4">
+        <form method="POST" action="{{ route('assets.backtest.run', $stock) }}" class="space-y-4">
             @csrf
 
             <div>

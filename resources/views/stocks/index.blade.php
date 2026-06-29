@@ -1,25 +1,25 @@
 @extends('layouts.app')
 
-@section('title', 'หุ้นทั้งหมด — Invest AI')
+@section('title', 'สินทรัพย์ทั้งหมด — Invest AI')
 
 @section('content')
 
 <div class="flex items-center justify-between mb-8">
     <div>
-        <h1 class="text-2xl font-bold text-slate-900">หุ้นทั้งหมด</h1>
-        <p class="text-slate-500 text-sm mt-1">{{ $stocks->count() }} หุ้นในระบบ</p>
+        <h1 class="text-2xl font-bold text-slate-900">สินทรัพย์ทั้งหมด</h1>
+        <p class="text-slate-500 text-sm mt-1">{{ $stocks->count() }} สินทรัพย์ในระบบ</p>
     </div>
     <a href="{{ route('manage.index') }}"
        class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition shadow-sm">
-        + เพิ่มหุ้น
+        + เพิ่มสินทรัพย์
     </a>
 </div>
 
 @if($stocks->isEmpty())
     <div class="glass-card p-16 text-center">
         <div class="text-5xl mb-3">📭</div>
-        <p class="text-slate-400">ยังไม่มีหุ้น</p>
-        <a href="{{ route('manage.index') }}" class="mt-4 inline-block text-indigo-600 text-sm font-medium hover:underline">+ เพิ่มหุ้นแรก</a>
+        <p class="text-slate-400">ยังไม่มีสินทรัพย์</p>
+        <a href="{{ route('manage.index') }}" class="mt-4 inline-block text-indigo-600 text-sm font-medium hover:underline">+ เพิ่มสินทรัพย์แรก</a>
     </div>
 @else
     <div class="glass-card overflow-hidden p-0">
@@ -39,10 +39,22 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @foreach($stocks as $s)
+                    @php
+                        $idxSections = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุนรวม', 'gold' => '🥇 ทองคำ'];
+                        $idxGrouped  = collect($stocks)->groupBy('asset_category');
+                    @endphp
+                    @foreach($idxSections as $cat => $secLabel)
+                        @php $items = $idxGrouped->get($cat); @endphp
+                        @continue(!$items || $items->isEmpty())
+                        <tr class="bg-slate-50/70">
+                            <td colspan="9" class="px-5 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                {{ $secLabel }} <span class="text-slate-400 font-normal">· {{ $items->count() }} รายการ</span>
+                            </td>
+                        </tr>
+                    @foreach($items as $s)
                     <tr class="hover:bg-indigo-50/30 transition group">
                         <td class="px-5 py-3.5">
-                            <a href="{{ route('stocks.show', $s['id']) }}" class="font-bold text-indigo-600 hover:text-indigo-800 text-base">{{ $s['symbol'] }}</a>
+                            <a href="{{ route('assets.show', $s['id']) }}" class="font-bold text-indigo-600 hover:text-indigo-800 text-base">{{ $s['symbol'] }}</a>
                         </td>
                         <td class="px-5 py-3.5 text-slate-600 text-xs max-w-44 truncate">{{ $s['name'] ?? '—' }}</td>
                         <td class="px-5 py-3.5 text-slate-400 text-xs">{{ $s['exchange'] ?? '—' }}</td>
@@ -74,13 +86,14 @@
                         <td class="px-5 py-3.5 text-slate-400 text-xs">{{ $s['investment_style'] ?? '—' }}</td>
                         <td class="px-5 py-3.5">
                             <div class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition">
-                                <a href="{{ route('stocks.backtest', $s['id']) }}"
+                                <a href="{{ route('assets.backtest', $s['id']) }}"
                                    class="px-2.5 py-1 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg text-xs font-medium transition">DCA</a>
-                                <a href="{{ route('stocks.analyze', $s['id']) }}"
+                                <a href="{{ route('assets.analyze', $s['id']) }}"
                                    class="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-medium transition">AI</a>
                             </div>
                         </td>
                     </tr>
+                    @endforeach
                     @endforeach
                 </tbody>
             </table>

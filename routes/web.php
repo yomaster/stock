@@ -100,12 +100,16 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{stock}', [FundManageController::class, 'destroy'])->name('destroy');
     });
 
-    // Stock analysis
-    Route::prefix('stocks')->name('stocks.')->group(function () {
+    // Asset analysis (เดิม /stocks — เปลี่ยนเป็น /asset ให้ครอบคลุมทุกชนิดสินทรัพย์)
+    // ⚠️ ใช้ prefix เอกพจน์ 'asset' เพราะ /assets ชนกับโฟลเดอร์จริง public/assets/
+    //    (web server เสิร์ฟ static dir ก่อนเข้า Laravel → /assets 404)
+    //    route name ยังเป็น 'assets.*' (plural) — ไม่ต้องแก้ route() ที่อื่น
+    // หมายเหตุ: permission slug ยังเป็น 'stocks'/'compare' (ไม่แตะ role ใน DB)
+    Route::prefix('asset')->name('assets.')->group(function () {
         Route::get('/', [StockController::class, 'index'])->middleware('permission:stocks')->name('index');
         Route::get('/compare', [CompareController::class, 'index'])->middleware('permission:compare')->name('compare');
 
-        // หน้าวิเคราะห์รายหุ้น — ต้องมีสิทธิ์ stocks
+        // หน้าวิเคราะห์รายสินทรัพย์ — ต้องมีสิทธิ์ stocks
         Route::middleware('permission:stocks')->group(function () {
             Route::get('/{stock}', [StockController::class, 'show'])->name('show');
             Route::get('/{stock}/backtest', [StockController::class, 'backtestForm'])->name('backtest');
@@ -114,4 +118,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/{stock}/analyze', [StockController::class, 'analyzeRun'])->name('analyze.run');
         });
     });
+
+    // backward-compat: ลิงก์เก่า /stocks/* → /asset/* (กัน bookmark พัง)
+    Route::redirect('/stocks', '/asset');
+    Route::get('/stocks/{path}', fn (string $path) => redirect('/asset/' . $path))->where('path', '.*');
 });

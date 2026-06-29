@@ -34,6 +34,7 @@ class StockController extends Controller
                 'name'         => $stock->name,
                 'currency'     => $stock->currency,
                 'exchange'     => $stock->exchange,
+                'asset_category' => $stock->asset_category,
                 'price'        => $latest?->close,
                 'change'       => $change,
                 'rating'       => $analysis?->rating,

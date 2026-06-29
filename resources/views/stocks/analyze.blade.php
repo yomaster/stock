@@ -5,7 +5,7 @@
 @section('content')
 
 <div class="mb-6">
-    <a href="{{ route('stocks.show', $stock) }}" class="text-slate-400 hover:text-slate-600 text-xs font-medium">← {{ $stock->symbol }}</a>
+    <a href="{{ route('assets.show', $stock) }}" class="text-slate-400 hover:text-slate-600 text-xs font-medium">← {{ $stock->symbol }}</a>
     <h1 class="text-2xl font-bold text-slate-900 mt-2">AI วิเคราะห์ — {{ $stock->symbol }}</h1>
     <p class="text-slate-500 text-sm mt-0.5">คาดการณ์ผลตอบแทน Bull / Base / Bear ด้วย Gemini AI</p>
 </div>
@@ -15,7 +15,7 @@
     {{-- Form --}}
     <div class="glass-card p-6 self-start">
         <h2 class="font-semibold text-slate-800 mb-5">ตั้งค่าการวิเคราะห์</h2>
-        <form id="analyzeForm" data-action="{{ route('stocks.analyze.run', $stock) }}" class="space-y-4">
+        <form id="analyzeForm" data-action="{{ route('assets.analyze.run', $stock) }}" class="space-y-4">
             @csrf
 
             {{-- Currency selector --}}

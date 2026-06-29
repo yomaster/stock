@@ -7,7 +7,7 @@
 {{-- Header --}}
 <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
     <div>
-        <a href="{{ route('stocks.index') }}" class="text-slate-400 hover:text-slate-600 text-xs font-medium">← หุ้นทั้งหมด</a>
+        <a href="{{ route('assets.index') }}" class="text-slate-400 hover:text-slate-600 text-xs font-medium">← หุ้นทั้งหมด</a>
         <div class="flex items-center gap-3 mt-2">
             <div class="w-11 h-11 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
                 <span class="text-sm font-bold text-white">{{ substr($stock->symbol, 0, 2) }}</span>
@@ -26,11 +26,11 @@
             <div class="text-xs text-slate-400">{{ \Carbon\Carbon::parse($latestPrice->date)->format('d/m/Y') }}</div>
         @endif
         <div class="flex gap-2 mt-3 justify-end">
-            <a href="{{ route('stocks.backtest', $stock) }}"
+            <a href="{{ route('assets.backtest', $stock) }}"
                class="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm">
                 📊 DCA Backtest
             </a>
-            <a href="{{ route('stocks.analyze', $stock) }}"
+            <a href="{{ route('assets.analyze', $stock) }}"
                class="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition shadow-sm">
                 🤖 AI วิเคราะห์
             </a>
@@ -114,7 +114,7 @@
         @else
             <div class="text-center py-10">
                 <p class="text-slate-400 text-sm mb-4">ยังไม่มีผลวิเคราะห์</p>
-                <a href="{{ route('stocks.analyze', $stock) }}"
+                <a href="{{ route('assets.analyze', $stock) }}"
                    class="inline-block bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 transition">
                     วิเคราะห์ด้วย AI
                 </a>

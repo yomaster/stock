@@ -148,7 +148,7 @@
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <a href="{{ route('stocks.show', $stock) }}" class="font-semibold text-slate-800 hover:text-indigo-600 transition text-sm">{{ $stock->symbol }}</a>
+                                <a href="{{ route('assets.show', $stock) }}" class="font-semibold text-slate-800 hover:text-indigo-600 transition text-sm">{{ $stock->symbol }}</a>
                                 <span class="text-xs px-1.5 py-0.5 rounded-md font-medium {{ $badge['cls'] }}">{{ $badge['label'] }}</span>
                             </div>
                             <div class="text-xs text-slate-400">{{ $stock->name ?? '—' }} · {{ $stock->exchange ?? '—' }}</div>
@@ -170,7 +170,7 @@
                         @endif
 
                         {{-- Analyze --}}
-                        <a href="{{ route('stocks.analyze', $stock) }}"
+                        <a href="{{ route('assets.analyze', $stock) }}"
                            class="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition" title="AI วิเคราะห์">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>

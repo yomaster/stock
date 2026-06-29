@@ -1,29 +1,38 @@
 @extends('layouts.app')
 
-@section('title', 'เปรียบเทียบหุ้น — Invest AI')
+@section('title', 'เปรียบเทียบสินทรัพย์ — Invest AI')
 
 @section('content')
 
 <div class="mb-8">
-    <h1 class="text-2xl font-bold text-slate-900">📊 เปรียบเทียบหุ้น</h1>
-    <p class="text-slate-500 text-sm mt-1">เทียบการเติบโต (%) ของหลายหุ้นในช่วงเวลาเดียวกัน — ฐานเริ่มต้น = 100</p>
+    <h1 class="text-2xl font-bold text-slate-900">📊 เปรียบเทียบสินทรัพย์</h1>
+    <p class="text-slate-500 text-sm mt-1">เทียบการเติบโต (%) ของหลายสินทรัพย์ในช่วงเวลาเดียวกัน — ฐานเริ่มต้น = 100 (เทียบข้ามชนิดได้)</p>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
     {{-- Form เลือกหุ้น --}}
     <div class="glass-card p-6 self-start">
-        <h2 class="font-semibold text-slate-800 mb-4">เลือกหุ้น</h2>
-        <form method="GET" action="{{ route('stocks.compare') }}">
-            <div class="space-y-2 mb-4 max-h-72 overflow-y-auto pr-1">
-                @foreach($allStocks as $stock)
-                <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition">
-                    <input type="checkbox" name="symbols[]" value="{{ $stock->symbol }}"
-                        {{ in_array($stock->symbol, $selected) ? 'checked' : '' }}
-                        class="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-400">
-                    <span class="text-sm font-medium text-slate-700">{{ $stock->symbol }}</span>
-                    <span class="text-xs text-slate-400 truncate">{{ $stock->name }}</span>
-                </label>
+        <h2 class="font-semibold text-slate-800 mb-4">เลือกสินทรัพย์</h2>
+        <form method="GET" action="{{ route('assets.compare') }}">
+            <div class="space-y-3 mb-4 max-h-72 overflow-y-auto pr-1">
+                @php
+                    $cmpSections = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุนรวม', 'gold' => '🥇 ทองคำ'];
+                    $cmpGrouped  = collect($allStocks)->groupBy('asset_category');
+                @endphp
+                @foreach($cmpSections as $cat => $secLabel)
+                    @php $items = $cmpGrouped->get($cat); @endphp
+                    @continue(!$items || $items->isEmpty())
+                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide px-1 pt-1">{{ $secLabel }}</div>
+                    @foreach($items as $stock)
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition">
+                        <input type="checkbox" name="symbols[]" value="{{ $stock->symbol }}"
+                            {{ in_array($stock->symbol, $selected) ? 'checked' : '' }}
+                            class="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-400">
+                        <span class="text-sm font-medium text-slate-700">{{ $stock->symbol }}</span>
+                        <span class="text-xs text-slate-400 truncate">{{ $stock->name }}</span>
+                    </label>
+                    @endforeach
                 @endforeach
             </div>
 
@@ -51,7 +60,7 @@
         @if(empty($datasets))
             <div class="glass-card flex flex-col items-center justify-center py-20 text-center">
                 <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4 text-3xl">📊</div>
-                <p class="text-slate-500 font-medium">เลือกหุ้น 2 ตัวขึ้นไปแล้วกด "เปรียบเทียบ"</p>
+                <p class="text-slate-500 font-medium">เลือกสินทรัพย์ 2 รายการขึ้นไปแล้วกด "เปรียบเทียบ"</p>
                 <p class="text-slate-400 text-sm mt-1">ระบบจะแสดงกราฟการเติบโตเทียบกัน</p>
             </div>
         @else
