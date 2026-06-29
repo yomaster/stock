@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ScopesUserStocks;
+use App\Jobs\FetchFundNavJob;
 use App\Models\Portfolio;
 use App\Models\PortfolioItem;
+use App\Models\SecFund;
 use App\Models\Stock;
 use App\Services\GeminiService;
+use App\Services\SecFundApi;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -62,28 +65,29 @@ class PortfolioImportController extends Controller
             $amount   = (float) ($r['amount'] ?? 0);
             $currency = strtoupper(trim($r['currency'] ?? ''));
             $datetime = $this->parseDatetime($r['datetime'] ?? null);
+            $note     = trim((string) ($r['note'] ?? '')); // ที่มา เช่น "สับเปลี่ยนจาก X"
             if ($symbol === '' || $shares <= 0) {
                 continue; // ข้อมูลไม่ครบ → ข้าม
             }
 
             $fxRate = isset($r['fx_rate']) && $r['fx_rate'] ? (float) $r['fx_rate'] : null;
 
-            // หาหุ้น + เพิ่มให้อัตโนมัติถ้ายังไม่ติดตาม
+            // หาสินทรัพย์ + เพิ่มให้อัตโนมัติถ้ายังไม่ติดตาม (รองรับทั้งหุ้น Yahoo และกองทุน SEC)
             [$stock, $wasNew] = $this->ensureTracked($user, $symbol);
             if (!$stock) {
-                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $fxRate, $datetime, 'invalid');
+                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $fxRate, $datetime, 'invalid', $note);
                 continue;
             }
             if ($wasNew) {
                 $newStocks[$stock->symbol] = true;
             }
             if (!in_array($currency, ['THB', 'USD'], true)) {
-                $currency = $stock->currency; // เผื่ออ่านสกุลไม่ได้ → ใช้สกุลของหุ้น
+                $currency = $stock->currency; // เผื่ออ่านสกุลไม่ได้ → ใช้สกุลของสินทรัพย์
             }
 
-            // เช็คซ้ำ: หุ้น + วันที่ + จำนวนหุ้น (จับได้ทุกกรณี รวม item เดิมที่ไม่มีเวลา)
+            // เช็คซ้ำ: สินทรัพย์ + วันที่ + จำนวนหน่วย (จับได้ทุกกรณี รวม item เดิมที่ไม่มีเวลา)
             $rows[] = $this->row($type, $stock->symbol, $stock->id, $shares, $price, $amount, $currency, $fxRate, $datetime,
-                $this->isDuplicate($portfolio, $stock->id, $datetime, $shares) ? 'duplicate' : 'new');
+                $this->isDuplicate($portfolio, $stock->id, $datetime, $shares) ? 'duplicate' : 'new', $note);
         }
 
         return response()->json([
@@ -107,6 +111,7 @@ class PortfolioImportController extends Controller
             'rows.*.currency'   => 'nullable|in:THB,USD',
             'rows.*.fx_rate'    => 'nullable|numeric|min:1|max:200',
             'rows.*.datetime'   => 'nullable|date',
+            'rows.*.note'       => 'nullable|string|max:255',
         ]);
 
         $portfolio = $this->currentPortfolio();
@@ -146,6 +151,7 @@ class PortfolioImportController extends Controller
                 'fx_rate'           => (isset($r['fx_rate']) && $r['fx_rate']) ? (float) $r['fx_rate'] : null,
                 'purchase_date'     => $executedAt ? $executedAt->toDateString() : now()->toDateString(),
                 'executed_at'       => $executedAt,
+                'note'              => !empty($r['note']) ? trim($r['note']) : null,
             ]);
             $inserted++;
         }
@@ -179,6 +185,12 @@ class PortfolioImportController extends Controller
             return [$stock, false];
         }
 
+        // ลองจับคู่กองทุนใน catalog SEC ก่อนยิง Yahoo (กองทุนไทยไม่มีบน Yahoo)
+        [$fund, $fundNew] = $this->ensureFundTracked($user, $symbol);
+        if ($fund) {
+            return [$fund, $fundNew];
+        }
+
         // ยังไม่มี → ดึงจาก Yahoo (ลองตามพิมพ์ → .BK)
         Artisan::call('app:fetch-stock-data', ['symbol' => $symbol, '--years' => 5]);
         $stock = Stock::where('symbol', $symbol)->whereHas('prices')->first();
@@ -195,7 +207,51 @@ class PortfolioImportController extends Controller
         return [null, false];
     }
 
-    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?float $fxRate, ?Carbon $dt, string $status): array
+    /**
+     * จับคู่กองทุนจาก catalog SEC + เพิ่มให้อัตโนมัติ — คืน [Stock|null, wasNew]
+     * statement ใช้ชื่อระดับ class (เช่น K-GOLD-A(D)) แต่ catalog เก็บระดับ fund (K-GOLD)
+     * → จับคู่ตรงเป๊ะก่อน ไม่งั้นเอา proj_abbr_name ที่เป็น prefix ยาวสุดของชื่อจาก statement
+     */
+    private function ensureFundTracked($user, string $symbol): array
+    {
+        $fund = SecFund::where('proj_abbr_name', $symbol)->first()
+            ?? SecFund::whereRaw("? LIKE CONCAT(proj_abbr_name, '%')", [$symbol])
+                ->orderByRaw('LENGTH(proj_abbr_name) DESC')
+                ->first();
+        if (!$fund) {
+            return [null, false];
+        }
+
+        // มี Stock ของกองนี้แล้ว → แค่ attach
+        $stock = Stock::where('sec_proj_id', $fund->proj_id)->first();
+        if ($stock) {
+            $user->stocks()->syncWithoutDetaching([$stock->id]);
+            return [$stock, false];
+        }
+
+        // สร้างใหม่ + สั่งดึง NAV ย้อนหลังผ่าน queue (เหมือน FundManageController)
+        $api      = app(SecFundApi::class);
+        $navClass = $api->hasDailyInfoKey() ? $api->pickNavClass($fund->proj_id) : null;
+
+        $stock = Stock::create([
+            'symbol'         => strtoupper($fund->proj_abbr_name),
+            'name'           => $fund->proj_name_th ?: $fund->proj_abbr_name,
+            'currency'       => 'THB',
+            'exchange'       => 'SEC_TH',
+            'type'           => 'MUTUALFUND',
+            'asset_category' => 'fund',
+            'sec_proj_id'    => $fund->proj_id,
+            'sec_nav_class'  => $navClass,
+        ]);
+        $user->stocks()->syncWithoutDetaching([$stock->id]);
+
+        if ($navClass) {
+            FetchFundNavJob::dispatch($stock->id, $fund->proj_id, $navClass, now()->subYears(5)->format('Y-m-d'));
+        }
+        return [$stock, true];
+    }
+
+    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?float $fxRate, ?Carbon $dt, string $status, string $note = ''): array
     {
         return [
             'type'     => $type, // buy | sell
@@ -207,6 +263,7 @@ class PortfolioImportController extends Controller
             'currency' => $currency,
             'fx_rate'  => $fxRate,
             'datetime' => $dt?->format('Y-m-d H:i:s'),
+            'note'     => $note, // ที่มา (สับเปลี่ยน) — โชว์ใน preview + เก็บลง DB
             'status'   => $status, // new | duplicate | invalid
         ];
     }
@@ -267,25 +324,37 @@ class PortfolioImportController extends Controller
     private function prompt(): string
     {
         return <<<TXT
-คุณคือระบบอ่านรายการซื้อ-ขายหุ้นจากภาพหน้าจอแอปโบรกเกอร์ (เช่น Dime)
-อ่านทุกภาพที่แนบมา แล้วดึง "เฉพาะรายการที่สำเร็จ (เสร็จสิ้น)" ทั้ง ซื้อ และ ขาย
+คุณคือระบบอ่านรายการซื้อ-ขาย "หุ้น" และ "กองทุนรวม" จากภาพหน้าจอแอป
+(เช่น Dime สำหรับหุ้น · K-My Funds, Finnomena สำหรับกองทุน)
+อ่านทุกภาพที่แนบมา แล้วดึง "เฉพาะรายการที่สำเร็จ" เท่านั้น
 
 ⚠️ ข้ามรายการเหล่านี้ ห้ามนำมาเด็ดขาด:
 - ปันผล / รับเงินเข้า / ดอกเบี้ย (Dividend)
-- รายการที่ยังไม่สำเร็จ: "รอเวลาทำการ", "รอจับคู่", "รอยกเลิก", "ยกเลิก", "ไม่สำเร็จ", "ล้มเหลว"
+- รายการที่ "ไม่สำเร็จ": มีเครื่องหมายตกใจสีแดง (!), "ไม่สำเร็จ", "ล้มเหลว", "รอจับคู่",
+  "รอเวลาทำการ", "ยกเลิก", หรือจำนวนหน่วยแสดงเป็น "--"
+  (รายการสำเร็จมักมีเครื่องหมายถูกสีเขียว ✓)
+
+ประเภทรายการ:
+1. ซื้อ / "ซื้อแบบ DCA"  → type "buy"
+2. ขาย                    → type "sell"
+3. สับเปลี่ยน (Switch) "A → B" → แตกเป็น 2 รายการ:
+   - {type:"sell", symbol:"A", ...(ข้อมูลขาออก), note:"สับเปลี่ยนไป B"}
+   - {type:"buy",  symbol:"B", ...(ข้อมูลขาเข้า), note:"สับเปลี่ยนจาก A"}
 
 แต่ละรายการมีฟิลด์:
-- type: "buy" ถ้าเป็น "ซื้อ", "sell" ถ้าเป็น "ขาย"
-- symbol: ชื่อย่อหุ้น ตัวพิมพ์ใหญ่ (เช่น NVDA, GOOG, PTT)
-- shares: จำนวนหุ้นตามจริง ทศนิยมครบ (เช่น 0.2443011)
-- price: "ราคาที่ได้จริง" ต่อหุ้น เป็นตัวเลข (เช่น 200.04)
-- amount: มูลค่าที่จ่าย/ได้รับทั้งรายการ (เช่น 48.95 หรือ 499.72)
-- currency: สกุลเงิน — ถ้าหน่วยเป็น "บาท"=THB, ถ้า "USD"=USD
-- datetime: วันเวลา รูปแบบ "YYYY-MM-DD HH:MM:SS"
-  ⚠️ วันที่ในภาพเป็น พ.ศ. (เช่น "25 มิ.ย. 69" = 25 มิถุนายน 2569) ให้แปลงเป็น ค.ศ. เสมอ (2569 − 543 = 2026)
+- type: "buy" หรือ "sell"
+- symbol: ชื่อย่อตัวพิมพ์ใหญ่ — หุ้น เช่น NVDA, PTT · กองทุน เช่น K-GHRMF, ONE-UGG-ASSF, K-GOLD-A(D)
+- shares: จำนวนหุ้น หรือ "จำนวนหน่วย" ของกองทุน ทศนิยมครบ (เช่น 38.2892, 241.7965)
+- price: ราคาต่อหุ้น หรือ "ราคาต่อหน่วย (NAV)" เป็นตัวเลข (เช่น 13.0585)
+- amount: มูลค่าที่จ่าย/ได้รับทั้งรายการ (เช่น 500.00, 2750.00)
+- currency: ถ้าหน่วยเป็น "บาท"=THB, ถ้า "USD"=USD (กองทุนไทยเป็น THB เสมอ)
+- datetime: "YYYY-MM-DD HH:MM:SS" (ถ้าไม่มีเวลาใช้ 00:00:00)
+  ⚠️ วันที่ในภาพเป็น พ.ศ. ให้แปลงเป็น ค.ศ. เสมอ (ปี − 543)
+     เช่น "22 มิถุนายน 2569" หรือ "18 มิ.ย. 69" = 2026-06-18
+- note: ใส่เฉพาะรายการที่มาจากการสับเปลี่ยน (ตามรูปแบบด้านบน) ไม่งั้นเว้นว่าง ""
 
 ตอบเป็น JSON array เท่านั้น ห้ามมีข้อความอื่นหรือ markdown:
-[{"type":"buy","symbol":"NVDA","shares":0.2443011,"price":200.04,"amount":48.95,"currency":"USD","datetime":"2026-06-25 14:27:58"},{"type":"sell","symbol":"AAPL","shares":0.1927012,"price":270.39,"amount":52.11,"currency":"USD","datetime":"2026-04-20 11:40:08"}]
+[{"type":"buy","symbol":"K-GHRMF","shares":38.2892,"price":13.0585,"amount":500.00,"currency":"THB","datetime":"2026-06-18 00:00:00","note":""},{"type":"sell","symbol":"ONE-UGG-ASSF","shares":381.7249,"price":22.83,"amount":8714.02,"currency":"THB","datetime":"2022-08-22 00:00:00","note":"สับเปลี่ยนไป ONE-TCMSSF-SSF"},{"type":"buy","symbol":"ONE-TCMSSF-SSF","shares":792.7962,"price":10.99,"amount":8714.02,"currency":"THB","datetime":"2022-08-22 00:00:00","note":"สับเปลี่ยนจาก ONE-UGG-ASSF"}]
 ถ้าไม่มีรายการเลย ตอบ []
 TXT;
     }

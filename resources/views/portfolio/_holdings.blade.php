@@ -8,9 +8,9 @@
     <table class="w-full text-sm">
         <thead>
             <tr class="text-left text-xs text-slate-500 uppercase border-b border-slate-200">
-                <th class="pb-2 pr-3">หุ้น</th>
+                <th class="pb-2 pr-3">สินทรัพย์</th>
                 <th class="pb-2 pr-3 text-right">เงิน (ลงทุน/ได้รับ)</th>
-                <th class="pb-2 pr-3 text-right">จำนวนหุ้น</th>
+                <th class="pb-2 pr-3 text-right">จำนวนหน่วย/หุ้น</th>
                 <th class="pb-2 pr-3 text-right">ราคา→ล่าสุด</th>
                 <th class="pb-2"></th>
             </tr>
@@ -27,6 +27,9 @@
                         </span>
                     </div>
                     <span class="text-xs text-slate-400 block">{{ $h['datetime_label'] ?? '—' }}</span>
+                    @if(!empty($h['note']))
+                        <span class="text-xs text-violet-500 block">🔄 {{ $h['note'] }}</span>
+                    @endif
                 </td>
                 <td class="py-2.5 pr-3 text-right {{ $isSell ? 'text-red-500' : 'text-slate-600' }}">
                     {{ $h['invested_amount'] ? ($isSell ? '−' : '') . number_format($h['invested_amount'], 2) . ' ' . $h['invested_currency'] : '—' }}

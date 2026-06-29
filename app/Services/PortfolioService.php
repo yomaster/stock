@@ -227,6 +227,7 @@ class PortfolioService
                 'invested_currency' => $item->invested_currency,
                 'fx_rate'           => $item->fx_rate,
                 'current_price'     => $current,
+                'note'              => $item->note, // ที่มา (สับเปลี่ยน) ถ้ามี
                 'purchase_date'     => $item->purchase_date?->format('d/m/Y'),
                 'purchase_date_raw' => $item->purchase_date?->format('Y-m-d'),
                 // วันเวลาแสดงผล: ถ้ามี executed_at (เวลาจริง) โชว์เวลาด้วย

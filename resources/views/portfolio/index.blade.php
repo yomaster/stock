@@ -7,7 +7,7 @@
 <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
     <div>
         <h1 class="text-2xl font-bold text-slate-900">💼 พอร์ตการลงทุน</h1>
-        <p class="text-slate-500 text-sm mt-1">ราคาหุ้นสดจาก Yahoo (~15 นาที) · เรท USD→THB ≈ {{ number_format($rate, 2) }} บาท · กำไร/ขาดทุนคิดทั้งราคาหุ้นและค่าเงิน</p>
+        <p class="text-slate-500 text-sm mt-1">ราคาสด: หุ้น/ETF จาก Yahoo · กองทุนจาก NAV ล่าสุด · เรท USD→THB ≈ {{ number_format($rate, 2) }} บาท · กำไร/ขาดทุนคิดทั้งราคาและค่าเงิน</p>
     </div>
 
     {{-- ตัวเลือกพอร์ต --}}
@@ -95,7 +95,7 @@
 
     {{-- ฟอร์มเพิ่มหุ้น --}}
     <div class="glass-card p-6 self-start">
-        <h2 class="font-semibold text-slate-800 mb-4">เพิ่มหุ้นเข้าพอร์ต</h2>
+        <h2 class="font-semibold text-slate-800 mb-4">เพิ่มสินทรัพย์เข้าพอร์ต</h2>
 
         {{-- ทางลัด: นำเข้าจากภาพ (ใช้ก่อนกรอกมือ) --}}
         <button type="button" id="importImageBtn"
@@ -255,7 +255,7 @@
             <div class="glass-card flex flex-col items-center justify-center py-20 text-center">
                 <div class="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4 text-3xl">💼</div>
                 <p class="text-slate-500 font-medium">พอร์ตยังว่าง</p>
-                <p class="text-slate-400 text-sm mt-1">เพิ่มหุ้นที่ถือจริงจากฟอร์มด้านซ้าย</p>
+                <p class="text-slate-400 text-sm mt-1">เพิ่มสินทรัพย์ที่ถือจริงจากฟอร์มด้านซ้าย</p>
             </div>
         @else
             @if(!empty($positions))
@@ -318,12 +318,12 @@
 
             {{-- ตารางสรุปรายหุ้น (สถานะสุทธิหลังหักขาย, ต้นทุนเฉลี่ย) เรียงตามสัดส่วนมาก→น้อย --}}
             <div class="glass-card p-6">
-                <h3 class="font-semibold text-slate-800 mb-4">สรุปรายหุ้น (คงเหลือ)</h3>
+                <h3 class="font-semibold text-slate-800 mb-4">สรุปรายสินทรัพย์ (คงเหลือ)</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="text-slate-400 text-left border-b border-slate-100">
                             <tr>
-                                <th class="pb-2 font-medium">หุ้น</th>
+                                <th class="pb-2 font-medium">สินทรัพย์</th>
                                 <th class="pb-2 font-medium text-right">ต้นทุน (บาท)</th>
                                 <th class="pb-2 font-medium text-right">มูลค่า (บาท)</th>
                                 <th class="pb-2 font-medium text-right">กำไร/ขาดทุน</th>
@@ -339,7 +339,7 @@
                                         <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background: var(--c{{ $i }})"></span>
                                         <span class="font-semibold text-slate-700">{{ $a['symbol'] }}</span>
                                     </div>
-                                    <span class="text-xs text-slate-400 ml-4.5">{{ rtrim(rtrim(number_format($a['net_shares'], 7), '0'), '.') }} หุ้น</span>
+                                    <span class="text-xs text-slate-400 ml-4.5">{{ rtrim(rtrim(number_format($a['net_shares'], 7), '0'), '.') }} หน่วย/หุ้น</span>
                                 </td>
                                 <td class="py-2.5 text-right text-slate-600 tabular-nums">{{ number_format($a['cost_thb'], 2) }}</td>
                                 <td class="py-2.5 text-right font-medium text-slate-800 tabular-nums">{{ number_format($a['value_thb'], 2) }}</td>
@@ -525,9 +525,9 @@
                     <thead class="text-slate-400 text-left border-b border-slate-100">
                         <tr>
                             <th class="pb-2 pr-2"><input type="checkbox" id="importCheckAll" class="rounded border-slate-300"></th>
-                            <th class="pb-2 pr-2 font-medium">หุ้น</th>
-                            <th class="pb-2 pr-2 font-medium">จำนวนหุ้น</th>
-                            <th class="pb-2 pr-2 font-medium">ราคา/หุ้น</th>
+                            <th class="pb-2 pr-2 font-medium">สินทรัพย์</th>
+                            <th class="pb-2 pr-2 font-medium">จำนวนหน่วย</th>
+                            <th class="pb-2 pr-2 font-medium">ราคา/หน่วย</th>
                             <th class="pb-2 pr-2 font-medium">มูลค่าที่จ่าย</th>
                             <th class="pb-2 pr-2 font-medium">เรท FX</th>
                             <th class="pb-2 font-medium">วันเวลา</th>
@@ -794,9 +794,11 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
             tr.className = inv ? 'opacity-50' : '';
             tr.dataset.stockId = r.stock_id || '';
             tr.dataset.type = r.type || 'buy';
+            tr.dataset.note = r.note || '';
+            const noteHtml = r.note ? `<div class="text-violet-500 font-normal text-[11px]">🔄 ${r.note}</div>` : '';
             tr.innerHTML = `
                 <td class="py-2 pr-2"><input type="checkbox" class="imp-chk rounded border-slate-300" ${(!dup && !inv) ? 'checked' : ''} ${d}></td>
-                <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${typeBadge} ${r.symbol}${tag}</td>
+                <td class="py-2 pr-2 font-semibold text-slate-700 whitespace-nowrap">${typeBadge} ${r.symbol}${tag}${noteHtml}</td>
                 <td class="py-2 pr-2"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
                 <td class="py-2 pr-2"><input type="number" step="any" value="${r.price}" class="imp-price w-20 border border-slate-200 rounded-lg px-2 py-1" ${d}></td>
                 <td class="py-2 pr-2 whitespace-nowrap">
@@ -827,6 +829,7 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                 currency: tr.querySelector('.imp-cur').value,
                 fx_rate:  tr.querySelector('.imp-fx').value,
                 datetime: tr.querySelector('.imp-dt').value,
+                note:     tr.dataset.note,
             });
         });
         if (!rows.length) { window.toast('warning', 'ยังไม่ได้เลือกรายการ'); return; }
