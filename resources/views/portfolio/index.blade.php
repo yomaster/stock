@@ -21,7 +21,14 @@
             @endforeach
         </select>
 
-        <button type="button" id="renamePortfolioBtn" title="แก้ไขชื่อพอร์ต" data-name="{{ $portfolio->name }}"
+        @php
+            $pfCatLabels = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุน', 'gold' => '🥇 ทองคำ', 'mixed' => '🧺 ผสม'];
+        @endphp
+        @if($portfolio->category)
+            <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium whitespace-nowrap">{{ $pfCatLabels[$portfolio->category] ?? $portfolio->category }}</span>
+        @endif
+
+        <button type="button" id="renamePortfolioBtn" title="แก้ไขชื่อพอร์ต" data-name="{{ $portfolio->name }}" data-category="{{ $portfolio->category }}"
             class="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-xl transition">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
         </button>
@@ -46,11 +53,13 @@
         <form id="newPortfolioForm" method="POST" action="{{ route('portfolio.portfolios.store') }}" class="hidden">
             @csrf
             <input type="hidden" name="name" id="newPortfolioName">
+            <input type="hidden" name="category" id="newPortfolioCategory">
         </form>
         {{-- ฟอร์มซ่อนสำหรับเปลี่ยนชื่อพอร์ต --}}
         <form id="renamePortfolioForm" method="POST" action="{{ route('portfolio.portfolios.rename', $portfolio) }}" class="hidden">
             @csrf @method('PUT')
             <input type="hidden" name="name" id="renamePortfolioName">
+            <input type="hidden" name="category" id="renamePortfolioCategory">
         </form>
     </div>
 </div>
@@ -250,6 +259,42 @@
             </div>
         @else
             @if(!empty($positions))
+            {{-- สรุปตามชนิดสินทรัพย์ (แสดงเมื่อพอร์ตถือหลายชนิด) --}}
+            @php
+                $catGroups = collect($positions)->groupBy('asset_category')->map(fn ($g) => [
+                    'value' => $g->sum('value_thb'),
+                    'cost'  => $g->sum('cost_thb'),
+                    'pnl'   => $g->sum('value_thb') - $g->sum('cost_thb'),
+                ]);
+                $catMetaPf = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุนรวม', 'gold' => '🥇 ทองคำ'];
+            @endphp
+            @if($catGroups->count() > 1)
+            <div class="glass-card p-6">
+                <h3 class="font-semibold text-slate-800 mb-3">สัดส่วนตามชนิดสินทรัพย์</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    @foreach($catMetaPf as $cat => $label)
+                        @continue(empty($catGroups[$cat]))
+                        @php
+                            $g = $catGroups[$cat];
+                            $alloc = $total_value_thb > 0 ? $g['value'] / $total_value_thb * 100 : 0;
+                            $gp = $g['pnl'] >= 0;
+                        @endphp
+                        <div class="border border-slate-100 rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm font-semibold text-slate-700">{{ $label }}</span>
+                                <span class="text-xs text-slate-400">{{ number_format($alloc, 1) }}%</span>
+                            </div>
+                            <div class="text-lg font-bold text-slate-800">{{ number_format($g['value'], 2) }} <span class="text-xs font-normal text-slate-400">บาท</span></div>
+                            <div class="text-xs mt-0.5 {{ $gp ? 'text-emerald-600' : 'text-red-500' }}">
+                                {{ $gp ? '+' : '' }}{{ number_format($g['pnl'], 2) }}
+                                ({{ $gp ? '+' : '' }}{{ number_format($g['cost'] > 0 ? $g['pnl'] / $g['cost'] * 100 : 0, 1) }}%)
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             {{-- Allocation donut + legend --}}
             <div class="glass-card p-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
@@ -558,42 +603,58 @@ document.querySelectorAll('.type-btn').forEach(b => b.addEventListener('click', 
 
 document.addEventListener('DOMContentLoaded', () => switchType('buy'));
 
-// ── สร้างพอร์ตใหม่ (Swal prompt) ──
+// ── ตัวเลือกประเภทพอร์ต (optional) ใช้ร่วม create/rename ──
+function portfolioCatOptions(cur) {
+    const opts = [['', 'ไม่ระบุประเภท'], ['mixed', '🧺 ผสม'], ['stock', '📈 หุ้น'], ['fund', '🏦 กองทุน'], ['gold', '🥇 ทองคำ']];
+    return opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('');
+}
+function portfolioSwalHtml(name, cat) {
+    const safe = (name || '').replace(/"/g, '&quot;');
+    return `<input id="swalPfName" class="swal2-input" value="${safe}" placeholder="ชื่อพอร์ต เช่น พอร์ตเกษียณ">`
+         + `<select id="swalPfCat" class="swal2-select" style="width:80%">${portfolioCatOptions(cat || '')}</select>`;
+}
+function portfolioSwalPreConfirm() {
+    const name = document.getElementById('swalPfName').value.trim();
+    if (!name) { Swal.showValidationMessage('กรุณาใส่ชื่อพอร์ต'); return false; }
+    return { name, category: document.getElementById('swalPfCat').value };
+}
+
+// ── สร้างพอร์ตใหม่ ──
 document.getElementById('newPortfolioBtn')?.addEventListener('click', async function () {
     const { value } = await Swal.fire({
         title: 'สร้างพอร์ตใหม่',
-        input: 'text',
-        inputLabel: 'ชื่อพอร์ต',
-        inputPlaceholder: 'เช่น พอร์ตเกษียณ, พอร์ตหุ้นซิ่ง',
+        html: portfolioSwalHtml('', ''),
+        focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'สร้าง',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#4f46e5',
         customClass: { popup: 'rounded-2xl' },
-        inputValidator: v => (!v || !v.trim()) ? 'กรุณาใส่ชื่อพอร์ต' : null,
+        preConfirm: portfolioSwalPreConfirm,
     });
-    if (value && value.trim()) {
-        document.getElementById('newPortfolioName').value = value.trim();
+    if (value) {
+        document.getElementById('newPortfolioName').value = value.name;
+        document.getElementById('newPortfolioCategory').value = value.category;
         document.getElementById('newPortfolioForm').submit();
     }
 });
 
-// ── เปลี่ยนชื่อพอร์ต (Swal prompt prefill ชื่อเดิม) ──
+// ── เปลี่ยนชื่อ/ประเภทพอร์ต (prefill ค่าเดิม) ──
 document.getElementById('renamePortfolioBtn')?.addEventListener('click', async function () {
     const { value } = await Swal.fire({
-        title: 'แก้ไขชื่อพอร์ต',
-        input: 'text',
-        inputLabel: 'ชื่อพอร์ต',
-        inputValue: this.dataset.name || '',
+        title: 'แก้ไขพอร์ต',
+        html: portfolioSwalHtml(this.dataset.name, this.dataset.category),
+        focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'บันทึก',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#4f46e5',
         customClass: { popup: 'rounded-2xl' },
-        inputValidator: v => (!v || !v.trim()) ? 'กรุณาใส่ชื่อพอร์ต' : null,
+        preConfirm: portfolioSwalPreConfirm,
     });
-    if (value && value.trim()) {
-        document.getElementById('renamePortfolioName').value = value.trim();
+    if (value) {
+        document.getElementById('renamePortfolioName').value = value.name;
+        document.getElementById('renamePortfolioCategory').value = value.category;
         document.getElementById('renamePortfolioForm').submit();
     }
 });

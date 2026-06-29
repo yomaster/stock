@@ -50,9 +50,13 @@ class PortfolioController extends Controller
     public function storePortfolio(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:100',
+            'name'     => 'required|string|max:100',
+            'category' => 'nullable|in:stock,fund,gold,mixed', // ป้ายประเภท optional
         ]);
-        $portfolio = $request->user()->portfolios()->create(['name' => $validated['name']]);
+        $portfolio = $request->user()->portfolios()->create([
+            'name'     => $validated['name'],
+            'category' => $validated['category'] ?? null,
+        ]);
         session(['active_portfolio_id' => $portfolio->id]);
 
         return back()->with('success', "สร้างพอร์ต \"{$portfolio->name}\" แล้ว");
@@ -63,11 +67,15 @@ class PortfolioController extends Controller
     {
         $this->guardOwnsPortfolio($portfolio);
         $validated = $request->validate([
-            'name' => 'required|string|max:100',
+            'name'     => 'required|string|max:100',
+            'category' => 'nullable|in:stock,fund,gold,mixed',
         ]);
-        $portfolio->update(['name' => $validated['name']]);
+        $portfolio->update([
+            'name'     => $validated['name'],
+            'category' => $validated['category'] ?? null,
+        ]);
 
-        return back()->with('success', "เปลี่ยนชื่อพอร์ตเป็น \"{$portfolio->name}\"");
+        return back()->with('success', "บันทึกพอร์ต \"{$portfolio->name}\" แล้ว");
     }
 
     /** สลับพอร์ตที่กำลังดู */
