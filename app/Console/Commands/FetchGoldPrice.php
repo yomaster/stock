@@ -17,8 +17,10 @@ class FetchGoldPrice extends Command
 
     public function handle(): int
     {
-        // self-heal: สร้าง gold asset ถ้าไม่มี (เผื่อโดนลบ — migration รันครั้งเดียว re-create ไม่ได้)
-        $gold = Stock::firstOrCreate(
+        // self-heal + repair: สร้าง/ซ่อม gold asset ให้เป็นทองเสมอ
+        // ใช้ updateOrCreate (ไม่ใช่ firstOrCreate) เพื่อ "บังคับ" attr กลับมาถูก
+        // เผื่อแถว GOLD โดน fetch-stock-data flip เป็น Barrick (asset_category=stock, USD)
+        $gold = Stock::updateOrCreate(
             ['symbol' => 'GOLD'],
             [
                 'name'           => 'ทองคำแท่ง 96.5%',

@@ -28,6 +28,11 @@ class StockManageController extends Controller
         $symbol = strtoupper(trim($validated['symbol']));
         $user   = $request->user();
 
+        // 'GOLD' สงวนไว้สำหรับทองคำไทย (singleton) — กันชน Barrick Gold (NYSE: GOLD) บน Yahoo
+        if ($symbol === 'GOLD') {
+            return $this->storeResponse($request, false, 'รหัส GOLD สงวนไว้สำหรับทองคำ — ใช้ปุ่ม "ติดตามทองคำ" ด้านล่างแทน');
+        }
+
         // หุ้นมีใน catalog แล้ว (อาจถูก user คนอื่นเพิ่มไว้) → แค่ attach ไม่ดึง Yahoo ซ้ำ
         $existing = Stock::where('symbol', $symbol)->first();
         if ($existing) {

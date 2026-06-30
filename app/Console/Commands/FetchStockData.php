@@ -26,8 +26,9 @@ class FetchStockData extends Command
         if ($symbolInput) {
             $symbols[] = strtoupper($symbolInput);
         } else {
-            // Default list if database is empty
-            $dbSymbols = Stock::pluck('symbol')->toArray();
+            // เฉพาะหุ้น/ETF (Yahoo) — ข้ามกองทุน/ทอง ไม่งั้น symbol ชนหุ้นจริง
+            // เช่น "GOLD" → Yahoo คืน Barrick Gold → flip asset_category ของทองเป็น stock
+            $dbSymbols = Stock::whereNotIn('asset_category', ['fund', 'gold'])->pluck('symbol')->toArray();
             if (empty($dbSymbols)) {
                 $symbols = ['PTT.BK', 'ADVANC.BK', 'CPALL.BK', 'AAPL', 'TSLA', 'MSFT', 'NVDA'];
             } else {
