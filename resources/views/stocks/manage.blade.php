@@ -132,6 +132,17 @@
                 <p class="text-slate-400 text-sm">ยังไม่มีสินทรัพย์ — เพิ่มจากแบบฟอร์มด้านซ้าย</p>
             </div>
         @else
+            {{-- แถบเลือกหลายรายการเพื่อลบพร้อมกัน --}}
+            <div class="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-slate-100">
+                <label class="flex items-center gap-2 text-xs text-slate-500 cursor-pointer select-none">
+                    <input type="checkbox" id="selectAllAssets" class="rounded border-slate-300">
+                    เลือกทั้งหมด <span id="selCount" class="text-slate-400"></span>
+                </label>
+                <button type="button" id="bulkDeleteBtn" disabled
+                    class="px-3 py-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition">
+                    🗑 ลบที่เลือก
+                </button>
+            </div>
             @php
                 // เรียงลำดับ section ตามชนิดสินทรัพย์ (controller เรียง asset_category มาแล้ว)
                 $sections = ['stock' => '📈 หุ้น', 'etf' => '📦 ETF', 'fund' => '🏦 กองทุนรวม', 'gold' => '🥇 ทองคำ'];
@@ -159,6 +170,7 @@
                     @endphp
                 <div class="flex items-center justify-between p-3.5 bg-white/60 border border-slate-100 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition group">
                     <div class="flex items-center gap-3">
+                        <input type="checkbox" class="asset-chk rounded border-slate-300 shrink-0" value="{{ $stock->id }}">
                         <div class="w-9 h-9 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center">
                             <span class="text-xs font-bold text-slate-500">{{ substr($stock->symbol, 0, 2) }}</span>
                         </div>
@@ -364,6 +376,65 @@ document.addEventListener('DOMContentLoaded', function () {
         } finally {
             fundBtn.disabled = false;
             fundBtnText.textContent = 'ดึง NAV และเพิ่มกองทุน';
+        }
+    });
+});
+</script>
+@endpush
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAll = document.getElementById('selectAllAssets');
+    const bulkBtn   = document.getElementById('bulkDeleteBtn');
+    const selCount  = document.getElementById('selCount');
+    if (!bulkBtn) return;
+
+    const chks = () => Array.from(document.querySelectorAll('.asset-chk'));
+
+    function refresh() {
+        const n = chks().filter(c => c.checked).length;
+        bulkBtn.disabled = n === 0;
+        selCount.textContent = n ? `(${n})` : '';
+        if (selectAll) selectAll.checked = n > 0 && n === chks().length;
+    }
+    chks().forEach(c => c.addEventListener('change', refresh));
+    selectAll?.addEventListener('change', () => {
+        chks().forEach(c => c.checked = selectAll.checked);
+        refresh();
+    });
+
+    bulkBtn.addEventListener('click', async function () {
+        const ids = chks().filter(c => c.checked).map(c => c.value);
+        if (!ids.length) return;
+
+        const res = await Swal.fire({
+            title: `ลบ ${ids.length} รายการ?`,
+            text: 'ข้อมูลราคา/NAV และผลวิเคราะห์ของรายการที่เลือกจะถูกลบด้วย (ทองคำจะแค่เลิกติดตาม)',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ลบเลย',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#ef4444',
+            customClass: { popup: 'rounded-2xl' },
+        });
+        if (!res.isConfirmed) return;
+
+        try {
+            const r = await fetch('{{ route('manage.bulk-destroy') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ids }),
+            });
+            const data = await r.json();
+            if (data.success) { location.reload(); } // flash จาก server → toast หลัง reload
+            else { window.toast('error', data.message || 'ลบไม่สำเร็จ'); }
+        } catch (e) {
+            window.toast('error', 'เกิดข้อผิดพลาด: ' + e.message);
         }
     });
 });

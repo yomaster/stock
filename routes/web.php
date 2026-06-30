@@ -90,6 +90,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [StockManageController::class, 'index'])->name('index');
         Route::post('/', [StockManageController::class, 'store'])->name('store');
         Route::post('/gold', [StockManageController::class, 'trackGold'])->name('gold'); // ติดตามทองคำ
+        Route::post('/bulk-destroy', [StockManageController::class, 'bulkDestroy'])->name('bulk-destroy'); // ลบหลายรายการ
         Route::post('/{stock}/refresh', [StockManageController::class, 'refresh'])->name('refresh');
         Route::delete('/{stock}', [StockManageController::class, 'destroy'])->name('destroy');
     });

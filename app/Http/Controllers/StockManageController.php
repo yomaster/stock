@@ -111,6 +111,39 @@ class StockManageController extends Controller
         return back()->with('success', "อัปเดตข้อมูล {$stock->symbol} สำเร็จ");
     }
 
+    /** ลบ/เลิกติดตามหลายรายการพร้อมกัน (จากหน้าจัดการ) */
+    public function bulkDestroy(Request $request)
+    {
+        $data = $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer',
+        ]);
+
+        $user       = $request->user();
+        $trackedIds = $this->userStocks()->pluck('stocks.id')->all();
+        $count      = 0;
+
+        foreach ($data['ids'] as $id) {
+            if (!in_array($id, $trackedIds)) {
+                continue; // กัน inject: เฉพาะที่ user ติดตาม
+            }
+            $stock = Stock::find($id);
+            if (!$stock) {
+                continue;
+            }
+            $user->stocks()->detach($stock->id);
+
+            // ทองคำ = singleton เลิกติดตามได้แต่ไม่ลบ · อื่นๆ orphan cleanup ถ้าไม่มีคนติดตาม
+            if ($stock->asset_category !== 'gold' && $stock->users()->count() === 0) {
+                $stock->delete();
+            }
+            $count++;
+        }
+
+        $request->session()->flash('success', "ลบ/เลิกติดตาม {$count} รายการแล้ว");
+        return response()->json(['success' => true, 'count' => $count]);
+    }
+
     public function destroy(Stock $stock)
     {
         $this->guardTracksStock($stock);
