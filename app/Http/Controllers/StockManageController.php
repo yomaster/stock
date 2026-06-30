@@ -114,6 +114,12 @@ class StockManageController extends Controller
         // เลิกติดตาม (detach) เท่านั้น — ไม่ลบ market data ที่ user อื่นอาจใช้อยู่
         auth()->user()->stocks()->detach($stock->id);
 
+        // ⚠️ ทองคำเป็น singleton (ราคา GTA ย้อนหลังหลายปี + ใช้ร่วมทุกคน) — เลิกติดตามได้
+        // แต่ห้ามลบ asset/ราคาทิ้ง ไม่งั้น migration ไม่ re-create ต้อง backfill ใหม่ทั้งหมด
+        if ($stock->asset_category === 'gold') {
+            return back()->with('success', "เลิกติดตามทองคำแล้ว");
+        }
+
         // orphan cleanup: ไม่มีใครติดตามแล้ว → ลบหุ้น + prices + analysis (cascade)
         if ($stock->users()->count() === 0) {
             $stock->delete();

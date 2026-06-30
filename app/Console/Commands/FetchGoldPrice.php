@@ -17,11 +17,17 @@ class FetchGoldPrice extends Command
 
     public function handle(): int
     {
-        $gold = Stock::where('symbol', 'GOLD')->where('asset_category', 'gold')->first();
-        if (!$gold) {
-            $this->error('ยังไม่มี gold asset ในระบบ — รัน php artisan migrate ก่อน');
-            return self::FAILURE;
-        }
+        // self-heal: สร้าง gold asset ถ้าไม่มี (เผื่อโดนลบ — migration รันครั้งเดียว re-create ไม่ได้)
+        $gold = Stock::firstOrCreate(
+            ['symbol' => 'GOLD'],
+            [
+                'name'           => 'ทองคำแท่ง 96.5%',
+                'currency'       => 'THB',
+                'exchange'       => 'GTA',
+                'type'           => 'GOLD',
+                'asset_category' => 'gold',
+            ]
+        );
 
         $cursor = now()->subDays((int) $this->option('days'))->startOfDay();
         $end    = now();
