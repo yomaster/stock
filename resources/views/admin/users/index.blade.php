@@ -35,8 +35,8 @@
                             {{ mb_substr($u->nickname ?: $u->name, 0, 1) }}
                         </div>
                         <div>
-                            <p class="font-medium text-slate-800">{{ $u->name }}</p>
-                            <p class="text-xs text-slate-400">{{ $u->email }}</p>
+                            <p class="font-medium text-slate-800">{{ $u->nickname ?: $u->name ?: 'ผู้ใช้' }}</p>
+                            <p class="text-xs text-slate-400">{{ $u->email ?: 'Google login' }}</p>
                         </div>
                     </div>
                 </td>

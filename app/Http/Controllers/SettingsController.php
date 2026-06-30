@@ -23,6 +23,7 @@ class SettingsController extends Controller
 
         $groupLabels = [
             'gemini'    => ['title' => 'Gemini AI', 'icon' => '🤖'],
+            'google'    => ['title' => 'Google Login (OAuth)', 'icon' => '🔑'],
             'messaging' => ['title' => 'ช่องทางส่งข้อความ', 'icon' => '📨'],
             'line'      => ['title' => 'LINE Messaging API', 'icon' => '💬'],
             'telegram'  => ['title' => 'Telegram Bot API', 'icon' => '✈️'],

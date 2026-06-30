@@ -19,30 +19,34 @@ class ProfileController extends Controller
         ]);
     }
 
-    /** แก้ชื่อ/ชื่อเล่น/อีเมล */
+    /** แก้ชื่อเล่น/อีเมล (privacy: ไม่เก็บชื่อจริง — email optional สำหรับ user ที่ login ด้วย Google) */
     public function update(Request $request)
     {
         $user = $request->user();
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'nickname' => 'nullable|string|max:50',
-            'email'    => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'nickname' => 'required|string|max:50',
+            'email'    => ['nullable', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
         ]);
 
-        $user->update($validated);
+        $user->update([
+            'nickname' => $validated['nickname'],
+            'email'    => $validated['email'] ?: null,
+        ]);
         return back()->with('success', 'บันทึกข้อมูลโปรไฟล์แล้ว');
     }
 
-    /** เปลี่ยนรหัสผ่าน (ต้องยืนยันรหัสเดิม) */
+    /** เปลี่ยน/ตั้งรหัสผ่าน — Google-only user ที่ยังไม่มีรหัส ไม่ต้องยืนยันรหัสเดิม */
     public function updatePassword(Request $request)
     {
+        $hasPassword = (bool) $request->user()->password;
+
         $validated = $request->validate([
-            'current_password' => 'required|current_password',
+            'current_password' => [$hasPassword ? 'required' : 'nullable', 'current_password'],
             'password'         => ['required', 'confirmed', Password::min(8)],
         ]);
 
         $request->user()->update(['password' => $validated['password']]); // cast 'hashed'
-        return back()->with('success', 'เปลี่ยนรหัสผ่านแล้ว');
+        return back()->with('success', $hasPassword ? 'เปลี่ยนรหัสผ่านแล้ว' : 'ตั้งรหัสผ่านแล้ว — ใช้อีเมล + รหัสผ่านล็อกอินได้');
     }
 
     /** สร้างรหัสผูกบัญชี LINE (6 หลัก หมดอายุ 10 นาที) */

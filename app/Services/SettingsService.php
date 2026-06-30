@@ -92,6 +92,16 @@ class SettingsService
             'default' => '09:00', 'help' => 'ก่อนตลาดเปิด 9:30 ET — ระบบแปลงเป็นเวลาไทยตาม DST ให้เอง',
         ],
 
+        // ── Google Login (OAuth) ──
+        'google.client_id' => [
+            'group' => 'google', 'label' => 'Google Client ID', 'secret' => false,
+            'help' => 'จาก Google Cloud Console → Credentials → OAuth 2.0 Client ID · Authorized redirect URI = {domain}/auth/google/callback',
+        ],
+        'google.client_secret' => [
+            'group' => 'google', 'label' => 'Google Client Secret', 'secret' => true,
+            'help' => 'จาก OAuth 2.0 Client เดียวกัน',
+        ],
+
         // ── SEC Thailand API (กองทุนรวม) ──
         // สมัครฟรีที่ portal ใหม่ secopendata.sec.or.th — แต่ละ product มี subscription key แยก
         'sec.factsheet_key' => [

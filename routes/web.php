@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\CompareController;
@@ -36,6 +37,10 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth')->name('logout');
 
+// Google OAuth — ใช้ทั้ง login (guest) และเชื่อมบัญชี (auth) เลยไม่ใส่ middleware
+Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+
 // ───────────────────────── App (auth required) ─────────────────────────
 Route::middleware('auth')->group(function () {
 
@@ -49,6 +54,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password');
         Route::post('/line-code', [ProfileController::class, 'generateLineCode'])->name('line.code');
         Route::delete('/line', [ProfileController::class, 'unlinkLine'])->name('line.unlink');
+        Route::delete('/google', [GoogleAuthController::class, 'disconnect'])->name('google.disconnect');
         Route::put('/alerts', [ProfileController::class, 'updateAlerts'])->name('alerts');
     });
 

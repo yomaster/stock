@@ -19,7 +19,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/>
                 </svg>
             </div>
-            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Stock<span class="text-indigo-600">AI</span></h1>
+            <h1 class="text-xl font-bold text-slate-800 tracking-tight">Invest<span class="text-indigo-600">AI</span></h1>
             <p class="text-sm text-slate-400 mt-1">เข้าสู่ระบบเพื่อใช้งาน</p>
         </div>
 
@@ -61,6 +61,23 @@
                     เข้าสู่ระบบ
                 </button>
             </form>
+
+            {{-- Google login / สมัครด้วย Google --}}
+            <div class="flex items-center gap-3 my-4">
+                <div class="flex-1 border-t border-slate-100"></div>
+                <span class="text-xs text-slate-400">หรือ</span>
+                <div class="flex-1 border-t border-slate-100"></div>
+            </div>
+            <a href="{{ route('auth.google') }}"
+                class="w-full flex items-center justify-center gap-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-6 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/>
+                </svg>
+                เข้าสู่ระบบ / สมัครด้วย Google
+            </a>
         </div>
 
         <p class="text-center text-slate-400 text-xs mt-6">

@@ -28,8 +28,8 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'nickname' => 'nullable|string|max:50',
+            'nickname' => 'required|string|max:50',
+            'name'     => 'nullable|string|max:255',
             'email'    => 'required|email|max:255|unique:users,email',
             'password' => ['required', 'confirmed', Password::min(8)],
             'role_id'  => 'required|exists:roles,id',
@@ -45,7 +45,7 @@ class UserController extends Controller
             'status'   => $request->boolean('status'),
         ]);
 
-        return redirect()->route('admin.users.index')->with('success', "เพิ่มผู้ใช้ {$validated['name']} แล้ว");
+        return redirect()->route('admin.users.index')->with('success', "เพิ่มผู้ใช้ {$validated['nickname']} แล้ว");
     }
 
     public function edit(User $user)
@@ -59,8 +59,8 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'nickname' => 'nullable|string|max:50',
+            'nickname' => 'required|string|max:50',
+            'name'     => 'nullable|string|max:255',
             'email'    => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'role_id'  => 'required|exists:roles,id',
             'status'   => 'nullable|boolean',
@@ -79,7 +79,7 @@ class UserController extends Controller
             'status'   => $request->boolean('status'),
         ]);
 
-        return redirect()->route('admin.users.index')->with('success', "แก้ไขผู้ใช้ {$user->name} แล้ว");
+        return redirect()->route('admin.users.index')->with('success', "แก้ไขผู้ใช้ {$user->nickname} แล้ว");
     }
 
     public function resetPassword(Request $request, User $user)

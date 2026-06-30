@@ -13,26 +13,50 @@
 
     {{-- ── ข้อมูลโปรไฟล์ ── --}}
     <div class="glass-card p-6 self-start">
-        <h2 class="font-semibold text-slate-800 mb-5 flex items-center gap-2">📝 ข้อมูลส่วนตัว</h2>
+        <h2 class="font-semibold text-slate-800 mb-1 flex items-center gap-2">📝 ข้อมูลส่วนตัว</h2>
+        <p class="text-xs text-slate-400 mb-5">เพื่อความเป็นส่วนตัว เราเก็บแค่ชื่อเล่น · อีเมลใส่หรือไม่ก็ได้ (ไว้ล็อกอินด้วยรหัสผ่าน)</p>
         <form method="POST" action="{{ route('profile.update') }}" class="space-y-4">
             @csrf @method('PUT')
             <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">ชื่อ-สกุล</label>
-                <input type="text" name="name" value="{{ old('name', $user->name) }}" required
-                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            </div>
-            <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">ชื่อเล่น (แสดงบนเมนู)</label>
-                <input type="text" name="nickname" value="{{ old('nickname', $user->nickname) }}"
+                <input type="text" name="nickname" value="{{ old('nickname', $user->nickname) }}" required
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">อีเมล</label>
-                <input type="email" name="email" value="{{ old('email', $user->email) }}" required
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">อีเมล <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
+                <input type="email" name="email" value="{{ old('email', $user->email) }}"
+                    placeholder="เว้นว่างได้ถ้าใช้ Google ล็อกอิน"
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
             <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">บันทึก</button>
         </form>
+
+        <hr class="my-6 border-slate-100">
+
+        {{-- เชื่อมต่อ Google --}}
+        <h2 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">🔑 บัญชี Google</h2>
+        @if($user->google_id)
+            <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3 mb-3">
+                ✓ เชื่อมต่อ Google แล้ว — ล็อกอินด้วย Google ได้
+            </div>
+            <form method="POST" action="{{ route('profile.google.disconnect') }}"
+                  class="confirm-delete" data-title="ยกเลิกการเชื่อม Google?" data-message="ต้องมีอีเมล + รหัสผ่านไว้ล็อกอินก่อน ไม่งั้นจะล็อกอินไม่ได้">
+                @csrf @method('DELETE')
+                <button type="submit" class="text-sm text-red-500 hover:text-red-600 font-medium">ยกเลิกการเชื่อมต่อ</button>
+            </form>
+        @else
+            <p class="text-xs text-slate-400 mb-3">เชื่อมต่อแล้วล็อกอินด้วย Google ได้ โดยใช้บัญชีเดิมนี้ (พอร์ตไม่หาย)</p>
+            <a href="{{ route('auth.google') }}"
+                class="inline-flex items-center gap-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-xl text-sm transition">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/>
+                </svg>
+                เชื่อมต่อบัญชี Google
+            </a>
+        @endif
 
         <hr class="my-6 border-slate-100">
 

@@ -78,8 +78,8 @@
                     <div data-user-menu-panel
                         class="hidden absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-50">
                         <div class="px-4 py-2 border-b border-slate-100">
-                            <p class="text-sm font-medium text-slate-800 truncate">{{ $user->name }}</p>
-                            <p class="text-xs text-slate-400 truncate">{{ $user->email }}</p>
+                            <p class="text-sm font-medium text-slate-800 truncate">{{ $user->nickname ?: $user->name ?: 'ผู้ใช้' }}</p>
+                            <p class="text-xs text-slate-400 truncate">{{ $user->email ?: 'ล็อกอินด้วย Google' }}</p>
                             @if($user->role)
                                 <span class="inline-block mt-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{{ $user->role->name }}</span>
                             @endif
