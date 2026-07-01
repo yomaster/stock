@@ -35,45 +35,7 @@
                 </div>
             @endif
 
-            {{-- ล็อกอินด้วยอีเมล+รหัสผ่าน — ปิดไว้ (privacy: ระบบไม่เก็บอีเมลแล้ว ใช้ Google แทน)
-                 เปิดกลับได้ทันทีโดยตั้ง $enableEmailLogin = true --}}
-            @php $enableEmailLogin = false; @endphp
-            @if($enableEmailLogin)
-            <form method="POST" action="{{ route('login') }}" class="space-y-4">
-                @csrf
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1.5">อีเมล</label>
-                    <input type="email" name="email" value="{{ old('email') }}" required autofocus
-                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
-                               focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-1.5">รหัสผ่าน</label>
-                    <input type="password" name="password" required
-                        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
-                               focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
-                </div>
-                <div class="flex items-center justify-between">
-                    <label class="flex items-center gap-2 text-sm text-slate-500">
-                        <input type="checkbox" name="remember" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400">
-                        จดจำฉันไว้
-                    </label>
-                    <a href="{{ route('password.request') }}" class="text-sm text-indigo-600 hover:text-indigo-700">ลืมรหัสผ่าน?</a>
-                </div>
-                <button type="submit"
-                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition-all shadow-sm hover:shadow-indigo-200 hover:shadow-lg active:scale-[0.98]">
-                    เข้าสู่ระบบ
-                </button>
-            </form>
-
-            {{-- Google login / สมัครด้วย Google --}}
-            <div class="flex items-center gap-3 my-4">
-                <div class="flex-1 border-t border-slate-100"></div>
-                <span class="text-xs text-slate-400">หรือ</span>
-                <div class="flex-1 border-t border-slate-100"></div>
-            </div>
-            @endif
-
+            {{-- Google login / สมัครด้วย Google (ช่องทางหลัก) --}}
             <a href="{{ route('auth.google') }}"
                 class="w-full flex items-center justify-center gap-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-6 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">
                 <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -84,7 +46,59 @@
                 </svg>
                 เข้าสู่ระบบ / สมัครด้วย Google
             </a>
+
+            {{-- ปุ่มลับ: เผยฟอร์มอีเมลสำหรับสมาชิกเดิม (ระบบใช้ Google เป็นหลัก) --}}
+            @php $revealEmail = (bool) old('email'); @endphp
+            <div class="text-center mt-4">
+                <button type="button" id="toggleEmailLogin"
+                    class="text-xs text-slate-400 hover:text-slate-600 underline underline-offset-2 {{ $revealEmail ? 'hidden' : '' }}">
+                    เข้าสู่ระบบด้วยอีเมล (สำหรับสมาชิกเดิม)
+                </button>
+            </div>
+
+            {{-- ฟอร์มอีเมล+รหัสผ่าน — ซ่อนไว้ default เผยเมื่อกดปุ่มลับ (หรือมี error จากการ submit) --}}
+            <div id="emailLoginBox" class="{{ $revealEmail ? '' : 'hidden' }}">
+                <div class="flex items-center gap-3 my-4">
+                    <div class="flex-1 border-t border-slate-100"></div>
+                    <span class="text-xs text-slate-400">หรือใช้อีเมล</span>
+                    <div class="flex-1 border-t border-slate-100"></div>
+                </div>
+                <form method="POST" action="{{ route('login') }}" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1.5">อีเมล</label>
+                        <input type="email" name="email" value="{{ old('email') }}"
+                            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
+                                   focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1.5">รหัสผ่าน</label>
+                        <input type="password" name="password"
+                            class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
+                                   focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition bg-white/70">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-2 text-sm text-slate-500">
+                            <input type="checkbox" name="remember" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400">
+                            จดจำฉันไว้
+                        </label>
+                        <a href="{{ route('password.request') }}" class="text-sm text-indigo-600 hover:text-indigo-700">ลืมรหัสผ่าน?</a>
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition-all shadow-sm hover:shadow-indigo-200 hover:shadow-lg active:scale-[0.98]">
+                        เข้าสู่ระบบ
+                    </button>
+                </form>
+            </div>
         </div>
+
+        <script>
+            document.getElementById('toggleEmailLogin')?.addEventListener('click', function () {
+                document.getElementById('emailLoginBox')?.classList.remove('hidden');
+                this.classList.add('hidden');
+                document.querySelector('#emailLoginBox input[name=email]')?.focus();
+            });
+        </script>
 
         <p class="text-center text-slate-400 text-xs mt-6">
             Invest AI &mdash; ข้อมูลเพื่อการศึกษาเท่านั้น ไม่ใช่คำแนะนำการลงทุน
