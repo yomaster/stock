@@ -12,7 +12,9 @@ Artisan::command('inspire', function () {
 $settings = app(SettingsService::class);
 
 // ── ดึงข้อมูลสดทุกเช้า (เวลาไทย) ก่อนสรุป ──
-Schedule::command('app:fetch-stock-data')->dailyAt('06:00')->timezone('Asia/Bangkok');
+// refresh รายวันดึงแค่ 7 วันล่าสุด (ราคาเก่าอยู่ใน DB แล้ว) — โหลด 5 ปีเต็มทำตอน "เพิ่มหุ้น" เท่านั้น
+// buffer 7 วันเผื่อวันหยุดยาว (เช่น สงกรานต์) + Yahoo ปรับ adj_close/ปันผลย้อนหลัง
+Schedule::command('app:fetch-stock-data --days=7')->dailyAt('06:00')->timezone('Asia/Bangkok');
 Schedule::command('app:fetch-stock-news')->dailyAt('06:15')->timezone('Asia/Bangkok');
 Schedule::command('app:summarize-news')->dailyAt('06:30')->timezone('Asia/Bangkok');
 

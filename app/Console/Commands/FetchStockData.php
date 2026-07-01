@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Carbon;
 
-#[Signature('app:fetch-stock-data {symbol? : The stock symbol to fetch} {--years=5 : Years of history to fetch}')]
+#[Signature('app:fetch-stock-data {symbol? : The stock symbol to fetch} {--years=5 : Years of history to fetch} {--days= : ดึงย้อนหลังกี่วัน (override --years สำหรับ refresh รายวัน — ราคาเก่าอยู่ใน DB แล้ว)}')]
 #[Description('Fetch stock price history and dividends from Yahoo Finance')]
 class FetchStockData extends Command
 {
@@ -21,6 +21,7 @@ class FetchStockData extends Command
     {
         $symbolInput = $this->argument('symbol');
         $years = (int) $this->option('years');
+        $daysOpt = $this->option('days'); // ถ้าระบุ = โหมด refresh สั้นๆ (override years)
 
         $symbols = [];
         if ($symbolInput) {
@@ -36,10 +37,18 @@ class FetchStockData extends Command
             }
         }
 
-        $this->info("Fetching data for " . count($symbols) . " symbols for the last $years years...");
-
+        // โหมดดึง: --days (refresh สั้นๆ รายวัน) override --years (โหลดประวัติเต็มตอนเพิ่มหุ้น)
+        // ราคาวันเก่าเป็นอดีตที่ไม่เปลี่ยน + อยู่ใน DB แล้ว → refresh รายวันดึงแค่ช่วงสั้นก็พอ
+        // (เผื่อ buffer วันหยุดยาว/ปรับราคาย้อนหลังของ Yahoo เลยไม่ดึงแค่ 1 วัน)
         $period2 = time();
-        $period1 = $period2 - ($years * 365 * 24 * 60 * 60);
+        if ($daysOpt !== null && $daysOpt !== '') {
+            $days    = max(1, (int) $daysOpt);
+            $period1 = $period2 - ($days * 24 * 60 * 60);
+            $this->info("Refreshing " . count($symbols) . " symbols — last {$days} days...");
+        } else {
+            $period1 = $period2 - ($years * 365 * 24 * 60 * 60);
+            $this->info("Fetching " . count($symbols) . " symbols — last {$years} years...");
+        }
 
         foreach ($symbols as $symbol) {
             $this->info("Processing symbol: {$symbol}");
