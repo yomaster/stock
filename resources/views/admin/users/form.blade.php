@@ -24,11 +24,6 @@
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1.5">ชื่อ-สกุล <span class="text-slate-400 font-normal">(ไม่บังคับ)</span></label>
-                <input type="text" name="name" value="{{ old('name', $user->name) }}"
-                    class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            </div>
-            <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">อีเมล</label>
                 <input type="email" name="email" value="{{ old('email', $user->email) }}" required
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">

@@ -34,15 +34,36 @@
         <hr class="my-6 border-slate-100">
 
         {{-- เชื่อมต่อ Google --}}
+        @php $googleOnly = !($user->password && $user->email); @endphp
         <h2 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">🔑 บัญชี Google</h2>
         @if($user->google_id)
             <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3 mb-3">
                 ✓ เชื่อมต่อ Google แล้ว — ล็อกอินด้วย Google ได้
             </div>
+
+            {{-- แนะนำลบอีเมลเพื่อความเป็นส่วนตัว (เฉพาะตอนยังมีอีเมล/รหัสอยู่) --}}
+            @if($user->email || $user->password)
+                <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3">
+                    <p class="text-sm text-amber-800 font-medium">🔒 เพื่อความเป็นส่วนตัว</p>
+                    <p class="text-xs text-amber-700 mt-1">คุณเชื่อม Google แล้ว แนะนำให้ลบอีเมล + รหัสผ่านออก ระบบจะไม่เก็บอีเมลของคุณอีก (ล็อกอินด้วย Google เท่านั้น)</p>
+                    <form method="POST" action="{{ route('profile.email.remove') }}" class="confirm-delete mt-2"
+                          data-title="ลบอีเมล + รหัสผ่าน?" data-message="ระบบจะไม่เก็บอีเมลของคุณ · จากนั้นล็อกอินด้วย Google เท่านั้น">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="text-sm text-amber-700 hover:text-amber-900 font-medium underline">ลบอีเมล + รหัสผ่านออก</button>
+                    </form>
+                </div>
+            @endif
+
             <form method="POST" action="{{ route('profile.google.disconnect') }}"
-                  class="confirm-delete" data-title="ยกเลิกการเชื่อม Google?" data-message="ต้องมีอีเมล + รหัสผ่านไว้ล็อกอินก่อน ไม่งั้นจะล็อกอินไม่ได้">
+                  class="confirm-delete"
+                  data-title="ยกเลิกการเชื่อม Google?"
+                  data-message="{{ $googleOnly
+                        ? '⚠️ บัญชีนี้ใช้ Google อย่างเดียว — ยกเลิกแล้วระบบจะลบบัญชี พอร์ต แผน DCA หุ้นที่ติดตาม และข้อมูลทั้งหมดถาวร กู้คืนไม่ได้!'
+                        : 'จะยกเลิกการเชื่อม Google (ข้อมูลยังอยู่ครบ ล็อกอินด้วยอีเมล + รหัสผ่านได้)' }}">
                 @csrf @method('DELETE')
-                <button type="submit" class="text-sm text-red-500 hover:text-red-600 font-medium">ยกเลิกการเชื่อมต่อ</button>
+                <button type="submit" class="text-sm text-red-500 hover:text-red-600 font-medium">
+                    {{ $googleOnly ? 'ยกเลิกการเชื่อมต่อ (ลบบัญชี + ข้อมูลทั้งหมด)' : 'ยกเลิกการเชื่อมต่อ' }}
+                </button>
             </form>
         @else
             <p class="text-xs text-slate-400 mb-3">เชื่อมต่อแล้วล็อกอินด้วย Google ได้ โดยใช้บัญชีเดิมนี้ (พอร์ตไม่หาย)</p>
@@ -60,14 +81,19 @@
 
         <hr class="my-6 border-slate-100">
 
-        <h2 class="font-semibold text-slate-800 mb-5 flex items-center gap-2">🔑 เปลี่ยนรหัสผ่าน</h2>
+        <h2 class="font-semibold text-slate-800 mb-5 flex items-center gap-2">🔑 {{ $user->password ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน' }}</h2>
+        @unless($user->password)
+            <p class="text-xs text-slate-400 mb-4">คุณล็อกอินด้วย Google — จะตั้งรหัสผ่านไว้เป็นช่องทางสำรองก็ได้ (ต้องมีอีเมลด้วยจึงจะใช้ล็อกอิน)</p>
+        @endunless
         <form method="POST" action="{{ route('profile.password') }}" class="space-y-4">
             @csrf @method('PUT')
+            @if($user->password)
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">รหัสผ่านปัจจุบัน</label>
                 <input type="password" name="current_password" required autocomplete="current-password"
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
+            @endif
             <div>
                 <label class="block text-sm font-medium text-slate-600 mb-1.5">รหัสผ่านใหม่</label>
                 <input type="password" name="password" required autocomplete="new-password"
@@ -78,7 +104,7 @@
                 <input type="password" name="password_confirmation" required autocomplete="new-password"
                     class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
-            <button type="submit" class="bg-slate-700 hover:bg-slate-800 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">เปลี่ยนรหัสผ่าน</button>
+            <button type="submit" class="bg-slate-700 hover:bg-slate-800 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">{{ $user->password ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน' }}</button>
         </form>
     </div>
 

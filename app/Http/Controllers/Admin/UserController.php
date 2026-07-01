@@ -89,7 +89,7 @@ class UserController extends Controller
         ]);
 
         $user->update(['password' => $validated['password']]); // cast 'hashed'
-        return back()->with('success', "รีเซ็ตรหัสผ่านของ {$user->name} แล้ว");
+        return back()->with('success', "รีเซ็ตรหัสผ่านของ {$user->nickname} แล้ว");
     }
 
     public function destroy(Request $request, User $user)
@@ -97,7 +97,7 @@ class UserController extends Controller
         if ($user->id === $request->user()->id) {
             return back()->with('error', 'ลบบัญชีตัวเองไม่ได้');
         }
-        $name = $user->name;
+        $name = $user->nickname;
         $user->delete(); // cascade: user_stocks + portfolios (FK cascadeOnDelete)
         return back()->with('success', "ลบผู้ใช้ {$name} แล้ว");
     }

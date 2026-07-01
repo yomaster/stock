@@ -35,6 +35,10 @@
                 </div>
             @endif
 
+            {{-- ล็อกอินด้วยอีเมล+รหัสผ่าน — ปิดไว้ (privacy: ระบบไม่เก็บอีเมลแล้ว ใช้ Google แทน)
+                 เปิดกลับได้ทันทีโดยตั้ง $enableEmailLogin = true --}}
+            @php $enableEmailLogin = false; @endphp
+            @if($enableEmailLogin)
             <form method="POST" action="{{ route('login') }}" class="space-y-4">
                 @csrf
                 <div>
@@ -68,6 +72,8 @@
                 <span class="text-xs text-slate-400">หรือ</span>
                 <div class="flex-1 border-t border-slate-100"></div>
             </div>
+            @endif
+
             <a href="{{ route('auth.google') }}"
                 class="w-full flex items-center justify-center gap-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium px-6 py-2.5 rounded-xl text-sm transition active:scale-[0.98]">
                 <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

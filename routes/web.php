@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [ProfileController::class, 'index'])->name('index');
         Route::put('/', [ProfileController::class, 'update'])->name('update');
         Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password');
+        Route::delete('/email', [ProfileController::class, 'removeEmail'])->name('email.remove');
         Route::post('/line-code', [ProfileController::class, 'generateLineCode'])->name('line.code');
         Route::delete('/line', [ProfileController::class, 'unlinkLine'])->name('line.unlink');
         Route::delete('/google', [GoogleAuthController::class, 'disconnect'])->name('google.disconnect');

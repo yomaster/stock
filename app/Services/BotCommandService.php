@@ -337,7 +337,7 @@ class BotCommandService
             'messaging_link_code_expires_at' => null,
         ])->save();
 
-        $m->reply($e->replyContext, "✅ ผูกบัญชีสำเร็จ!\nคุณ {$user->name} จะได้รับแจ้งเตือนราคา + สรุปเช้าที่ " . $this->providerLabel($m) . " นี้");
+        $m->reply($e->replyContext, "✅ ผูกบัญชีสำเร็จ!\nคุณ {$user->nickname} จะได้รับแจ้งเตือนราคา + สรุปเช้าที่ " . $this->providerLabel($m) . " นี้");
     }
 
     // ───────────────────────── helpers ─────────────────────────

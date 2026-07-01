@@ -38,7 +38,7 @@ class RbacSeeder extends Seeder
 
         $admin = User::create([
             'email'    => 'admin@stock.local',
-            'name'     => 'ผู้ดูแลระบบ',
+            'nickname' => 'ผู้ดูแลระบบ',
             'password' => 'password',          // cast 'hashed' จะ hash ให้อัตโนมัติ
             'role_id'  => $superRole->id,
             'status'   => true,

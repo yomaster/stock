@@ -17,14 +17,14 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'name', 'nickname', 'email', 'password', 'google_id',
+        'nickname', 'email', 'password', 'google_id', 'google_id_hash',
         'role_id', 'status', 'avatar',
         'messaging_provider', 'messaging_chat_id', 'messaging_link_code', 'messaging_link_code_expires_at',
         'alert_enabled', 'alert_price_threshold', 'alert_volume_multiplier', 'summary_enabled',
     ];
 
     protected $hidden = [
-        'password', 'remember_token', 'messaging_link_code',
+        'password', 'remember_token', 'messaging_link_code', 'google_id', 'google_id_hash',
     ];
 
     protected function casts(): array
@@ -32,6 +32,7 @@ class User extends Authenticatable
         return [
             'email_verified_at'              => 'datetime',
             'password'                       => 'hashed',
+            'google_id'                      => 'encrypted', // เก็บ ciphertext (privacy) — lookup ผ่าน google_id_hash
             'status'                         => 'boolean',
             'alert_enabled'                  => 'boolean',
             'summary_enabled'                => 'boolean',
@@ -64,6 +65,12 @@ class User extends Authenticatable
     public function plans(): HasMany
     {
         return $this->hasMany(Plan::class);
+    }
+
+    /** blind index สำหรับค้นหา google_id (ที่เก็บแบบเข้ารหัส) — sha256 deterministic */
+    public static function googleIdHash(string $googleId): string
+    {
+        return hash('sha256', $googleId);
     }
 
     // ───────────────────────── RBAC ─────────────────────────

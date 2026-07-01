@@ -32,10 +32,10 @@
                 <td class="px-5 py-3">
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold">
-                            {{ mb_substr($u->nickname ?: $u->name, 0, 1) }}
+                            {{ mb_substr($u->nickname ?: 'ผู้ใช้', 0, 1) }}
                         </div>
                         <div>
-                            <p class="font-medium text-slate-800">{{ $u->nickname ?: $u->name ?: 'ผู้ใช้' }}</p>
+                            <p class="font-medium text-slate-800">{{ $u->nickname ?: 'ผู้ใช้' }}</p>
                             <p class="text-xs text-slate-400">{{ $u->email ?: 'Google login' }}</p>
                         </div>
                     </div>
@@ -66,7 +66,7 @@
                         <a href="{{ route('admin.users.edit', $u) }}" class="text-indigo-600 hover:text-indigo-700 text-xs font-medium">แก้ไข</a>
                         @if($u->id !== auth()->id())
                         <form method="POST" action="{{ route('admin.users.destroy', $u) }}" class="confirm-delete inline"
-                            data-title="ลบผู้ใช้ {{ $u->name }}?" data-message="ข้อมูลพอร์ตและหุ้นที่ติดตามจะถูกลบด้วย">
+                            data-title="ลบผู้ใช้ {{ $u->nickname }}?" data-message="ข้อมูลพอร์ตและหุ้นที่ติดตามจะถูกลบด้วย">
                             @csrf @method('DELETE')
                             <button type="submit" class="text-rose-600 hover:text-rose-700 text-xs font-medium">ลบ</button>
                         </form>

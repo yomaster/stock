@@ -35,6 +35,20 @@ class ProfileController extends Controller
         return back()->with('success', 'บันทึกข้อมูลโปรไฟล์แล้ว');
     }
 
+    /**
+     * ลบอีเมล + รหัสผ่านออก (ทำได้เฉพาะเมื่อเชื่อม Google แล้ว — เพื่อความเป็นส่วนตัว → Google-only)
+     * กันล็อกเอาต์: ต้องมี google_id อยู่ก่อน
+     */
+    public function removeEmail(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->google_id) {
+            return back()->with('error', 'ต้องเชื่อมต่อ Google ก่อน จึงจะลบอีเมลได้ (ไม่งั้นจะล็อกอินไม่ได้)');
+        }
+        $user->update(['email' => null, 'password' => null]);
+        return back()->with('success', 'ลบอีเมลและรหัสผ่านแล้ว — จากนี้ล็อกอินด้วย Google เท่านั้น');
+    }
+
     /** เปลี่ยน/ตั้งรหัสผ่าน — Google-only user ที่ยังไม่มีรหัส ไม่ต้องยืนยันรหัสเดิม */
     public function updatePassword(Request $request)
     {
