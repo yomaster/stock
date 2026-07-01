@@ -4,16 +4,31 @@
 
 @section('content')
 
+{{-- print: โชว์เฉพาะผลแผน (#planPrintable) เวลาสั่งพิมพ์/บันทึก PDF --}}
+<style media="print">
+    body * { visibility: hidden; }
+    #planPrintable, #planPrintable * { visibility: visible; }
+    #planPrintable { position: absolute; left: 0; top: 0; width: 100%; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 1.2cm; }
+</style>
+
 <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
     <div>
         <h1 class="text-2xl font-bold text-slate-900">📅 แผน DCA</h1>
         <p class="text-slate-500 text-sm mt-1">ดึงสินทรัพย์จากพอร์ต → กำหนดยอด DCA รายตัว → คำนวณ projection จาก CAGR ย้อนหลัง + AI ตีความ</p>
     </div>
     @if($selected)
-        <a href="{{ route('plan.index') }}" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-sm">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            แผนใหม่
-        </a>
+        <div class="flex items-center gap-2">
+            <button type="button" id="printPlanBtn" class="inline-flex items-center gap-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-medium px-4 py-2.5 rounded-xl transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                บันทึก PDF
+            </button>
+            <a href="{{ route('plan.index') }}" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-sm">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                แผนใหม่
+            </a>
+        </div>
     @endif
 </div>
 
@@ -45,6 +60,7 @@
 
 {{-- ─── ผลแผนที่เลือก ─── --}}
 @if($selected)
+<div id="planPrintable">
     @include('plan._result', ['plan' => $selected])
 
     {{-- AI ตีความ --}}
@@ -84,6 +100,7 @@
             @endif
         </div>
     </div>
+</div>{{-- /#planPrintable --}}
 @endif
 
 {{-- ─── ฟอร์มสร้าง / แก้แผน ─── --}}
@@ -160,6 +177,43 @@ document.addEventListener('DOMContentLoaded', function () {
             row.querySelector('[data-icon-restore]')?.classList.toggle('hidden', !excluded);
         });
     });
+
+    // กราฟ projection รายปี (3 สถานการณ์)
+    @if($selected && !empty($selected->result['timeline']))
+    (function () {
+        const tl   = @json($selected->result['timeline']);
+        const meta = @json($selected->result['meta'] ?? []);
+        const el = document.getElementById('planProjectionChart');
+        if (!el || !window.Chart) return;
+        const startYear = meta.start_date ? new Date(meta.start_date).getFullYear() : new Date().getFullYear();
+        const labels = tl.years.map(t => startYear + t);
+        const fmt = v => v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v;
+        new Chart(el, {
+            type: 'line',
+            data: { labels, datasets: [
+                { label: 'เงินลงทุนสะสม', data: tl.invested, borderColor: '#cbd5e1', borderDash: [5, 3], borderWidth: 1.5, pointRadius: 0, fill: false },
+                { label: 'ดี',       data: tl.good, borderColor: '#10b981', borderWidth: 2,   pointRadius: 0, fill: false },
+                { label: 'ปานกลาง', data: tl.base, borderColor: '#6366f1', borderWidth: 2.5, pointRadius: 0, fill: false },
+                { label: 'แย่',      data: tl.bad,  borderColor: '#f43f5e', borderWidth: 2,   pointRadius: 0, fill: false },
+            ]},
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top', labels: { font: { size: 11 }, usePointStyle: true, pointStyleWidth: 10 } },
+                    tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('th-TH') + ' บาท' } }
+                },
+                scales: {
+                    x: { ticks: { font: { size: 10 }, color: '#94a3b8' }, grid: { color: '#f1f5f9' } },
+                    y: { ticks: { font: { size: 10 }, color: '#94a3b8', callback: fmt }, grid: { color: '#f1f5f9' } }
+                }
+            }
+        });
+    })();
+    @endif
+
+    // ปุ่มบันทึก PDF — เปิด dialog พิมพ์ (เลือก "Save as PDF")
+    document.getElementById('printPlanBtn')?.addEventListener('click', () => window.print());
 
     // ปุ่ม AI วิเคราะห์ (ปุ่มถาวร — กดวิเคราะห์ใหม่ได้ไม่จำกัด)
     const btn = document.getElementById('analyzeBtn');

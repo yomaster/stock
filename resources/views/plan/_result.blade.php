@@ -66,6 +66,38 @@
         </div>
     </div>
 
+    {{-- เปรียบเทียบ 3 สถานการณ์ (scenario) --}}
+    @if(!empty($r['scenarios']))
+        @php
+            $scenStyle = [
+                'good' => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'sub' => 'text-emerald-500', 'dot' => 'bg-emerald-500'],
+                'base' => ['bg' => 'bg-indigo-50',  'text' => 'text-indigo-700',  'sub' => 'text-indigo-500',  'dot' => 'bg-indigo-500'],
+                'bad'  => ['bg' => 'bg-rose-50',    'text' => 'text-rose-700',    'sub' => 'text-rose-500',    'dot' => 'bg-rose-500'],
+            ];
+        @endphp
+        <div class="glass-card p-5 mb-4">
+            <h3 class="font-semibold text-slate-800 mb-3 text-sm">มูลค่าคาดการณ์ในอีก {{ $plan->years }} ปี — 3 สถานการณ์</h3>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                @foreach(['good', 'base', 'bad'] as $sk)
+                    @php $s = $r['scenarios'][$sk]; $st = $scenStyle[$sk]; $sUp = ($s['profit_pct'] ?? 0) >= 0; @endphp
+                    <div class="rounded-xl {{ $st['bg'] }} p-3">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full {{ $st['dot'] }}"></span>
+                            <p class="text-xs {{ $st['sub'] }}">{{ $s['label'] }}</p>
+                        </div>
+                        <p class="text-base sm:text-lg font-bold {{ $st['text'] }} mt-1 leading-tight">{{ number_format($s['future_value_thb'], 0) }}</p>
+                        <p class="text-[11px] {{ $st['sub'] }}">{{ $sUp ? '+' : '' }}{{ number_format($s['profit_pct'], 1) }}%</p>
+                    </div>
+                @endforeach
+            </div>
+            {{-- กราฟ projection รายปี --}}
+            <div class="relative" style="height:280px">
+                <canvas id="planProjectionChart"></canvas>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2 text-center">สถานการณ์คิดจาก CAGR ฐาน ± (ดี +3%/ปี · แย่ −4%/ปี) — ประมาณการ ไม่ใช่การรับประกัน</p>
+        </div>
+    @endif
+
     {{-- ตารางรายสินทรัพย์ --}}
     <div class="glass-card p-5 mb-4 overflow-x-auto">
         <h3 class="font-semibold text-slate-800 mb-3 text-sm">รายละเอียดรายสินทรัพย์</h3>

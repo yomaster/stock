@@ -42,6 +42,14 @@ class DcaPlanService
     private const MANUAL_MAX = 0.50;
     private const DEFAULT_CAGR = 0.05; // 5% เมื่อหาค่า CAGR ไม่ได้เลยทั้งพอร์ต
 
+    // 3 สถานการณ์ (scenario) — offset จาก CAGR ฐาน (base) เป็น percentage point
+    // ดี = base +3%/ปี · ปานกลาง = base · แย่ = base −4%/ปี (สื่อความไม่แน่นอนของผลตอบแทน)
+    public const SCENARIOS = [
+        'good' => ['label' => 'ดี',       'offset' => 0.03],
+        'base' => ['label' => 'ปานกลาง',  'offset' => 0.0],
+        'bad'  => ['label' => 'แย่',       'offset' => -0.04],
+    ];
+
     /**
      * สินทรัพย์ในพอร์ต (สำหรับฟอร์ม) — symbol/ชื่อ/มูลค่าตั้งต้น/CAGR
      * - cagr_pct      = ค่าที่ใช้ตั้งต้น (cap แล้ว) → prefill ช่องให้ผู้ใช้ปรับ
@@ -112,9 +120,17 @@ class DcaPlanService
 
         $assets = [];
         $sumCurrent = 0;
-        $sumFuture = 0;
-        $sumInvested = 0;
         $sumContrib = 0;
+
+        // สะสมผลรวมแยกตาม scenario (ปลายทาง) + timeline รายปี (0..N)
+        $stepYears  = range(0, $years);
+        $timeline   = ['years' => $stepYears, 'invested' => array_fill(0, $years + 1, 0.0)];
+        $scenSum    = [];
+        foreach (self::SCENARIOS as $sk => $meta) {
+            $timeline[$sk] = array_fill(0, $years + 1, 0.0);
+            $scenSum[$sk]  = ['future' => 0.0, 'invested' => 0.0];
+        }
+
         foreach ($positions as $p) {
             $sym  = $p['symbol'];
             $dca  = max(0, (float) ($assetDca[$sym] ?? 0));
@@ -128,16 +144,10 @@ class DcaPlanService
             $cagr = $manual ?? $cagrAuto[$sym] ?? $fallbackCagr;
             $custom = $manual !== null;
 
-            if ($isOnce) {
-                // ลงเพิ่มก้อนเดียวตอนเริ่ม แล้วทบต้น
-                $contribThb = $dca;
-                $future     = ($init + $dca) * pow(1 + $cagr, $years);
-            } else {
-                $contribThb = $dca * $ppy * $years;
-                $future     = $this->futureValue($init, $dca, $cagr, $years, $ppy);
-            }
-            $invested = $init + $contribThb; // ทุนรวม = ค่าตั้งต้น + เงิน DCA ทั้งหมด
-            $profit   = $future - $invested;
+            $contribThb = $isOnce ? $dca : $dca * $ppy * $years;
+            $invested   = $init + $contribThb; // ทุนรวม = ค่าตั้งต้น + เงิน DCA ทั้งหมด
+            $future     = $this->assetFutureValue($init, $dca, $cagr, $years, $ppy, $isOnce); // base
+            $profit     = $future - $invested;
 
             $assets[] = [
                 'symbol'            => $sym,
@@ -155,28 +165,62 @@ class DcaPlanService
                 'profit_pct'        => $invested > 0 ? round($profit / $invested * 100, 2) : 0,
             ];
 
-            $sumCurrent  += $init;
-            $sumFuture   += $future;
-            $sumInvested += $invested;
-            $sumContrib  += $contribThb;
+            $sumCurrent += $init;
+            $sumContrib += $contribThb;
+
+            // ── scenario endpoint + timeline (ต่อสินทรัพย์) ──
+            foreach (self::SCENARIOS as $sk => $meta) {
+                $cagrS = $this->clampManual($cagr + $meta['offset']);
+                $scenSum[$sk]['future']   += $this->assetFutureValue($init, $dca, $cagrS, $years, $ppy, $isOnce);
+                $scenSum[$sk]['invested'] += $invested; // เงินลงทุนเท่ากันทุก scenario
+                foreach ($stepYears as $i => $t) {
+                    $timeline[$sk][$i] += $this->assetFutureValue($init, $dca, $cagrS, $t, $ppy, $isOnce);
+                }
+            }
+            // เส้นเงินลงทุนสะสม (เท่ากันทุก scenario)
+            foreach ($stepYears as $i => $t) {
+                $timeline['invested'][$i] += $isOnce ? $invested : ($init + $dca * $ppy * $t);
+            }
         }
 
         usort($assets, fn ($a, $b) => $b['future_value_thb'] <=> $a['future_value_thb']);
 
+        // ปัดเลข timeline (บาทเต็ม — ลดขนาด JSON)
+        foreach (array_merge(['invested'], array_keys(self::SCENARIOS)) as $key) {
+            $timeline[$key] = array_map(fn ($v) => round($v), $timeline[$key]);
+        }
+
+        // สรุปปลายทางแต่ละ scenario
+        $scenarios = [];
+        foreach (self::SCENARIOS as $sk => $meta) {
+            $fv  = $scenSum[$sk]['future'];
+            $inv = $scenSum[$sk]['invested'];
+            $scenarios[$sk] = [
+                'label'            => $meta['label'],
+                'future_value_thb' => round($fv, 2),
+                'invested_thb'     => round($inv, 2),
+                'profit_thb'       => round($fv - $inv, 2),
+                'profit_pct'       => $inv > 0 ? round(($fv - $inv) / $inv * 100, 2) : 0,
+            ];
+        }
+
+        // totals (base) = scenario 'base'
         $totals = [
             'start_value_thb'  => round($sumCurrent, 2),
             'contrib_thb'      => round($sumContrib, 2),
-            'invested_thb'     => round($sumInvested, 2),
-            'future_value_thb' => round($sumFuture, 2),
-            'profit_thb'       => round($sumFuture - $sumInvested, 2),
-            'profit_pct'       => $sumInvested > 0 ? round(($sumFuture - $sumInvested) / $sumInvested * 100, 2) : 0,
+            'invested_thb'     => $scenarios['base']['invested_thb'],
+            'future_value_thb' => $scenarios['base']['future_value_thb'],
+            'profit_thb'       => $scenarios['base']['profit_thb'],
+            'profit_pct'       => $scenarios['base']['profit_pct'],
         ];
 
         $endDate = $startDate ? Carbon::parse($startDate)->copy()->addYears($years) : null;
 
         return [
-            'assets' => $assets,
-            'totals' => $totals,
+            'assets'    => $assets,
+            'totals'    => $totals,
+            'scenarios' => $scenarios,
+            'timeline'  => $timeline,
             'meta'   => [
                 'generated_at'    => Carbon::now()->toDateTimeString(),
                 'frequency'       => $frequency,
@@ -243,6 +287,19 @@ class DcaPlanService
     private function clampManual(float $cagr): float
     {
         return max(self::MANUAL_MIN, min(self::MANUAL_MAX, $cagr));
+    }
+
+    /**
+     * มูลค่าสินทรัพย์ ณ ปีที่ $years (ใช้ทั้งปลายทางและจุด timeline รายปี)
+     * - once  : ลงก้อนเดียวตอนเริ่ม → (ตั้งต้น+ก้อน) ทบต้น
+     * - อื่นๆ : ตั้งต้น + เงินงวดทบต้น
+     */
+    private function assetFutureValue(float $init, float $dca, float $cagr, int $years, int $ppy, bool $isOnce): float
+    {
+        if ($isOnce) {
+            return ($init + $dca) * pow(1 + $cagr, $years);
+        }
+        return $this->futureValue($init, $dca, $cagr, $years, $ppy);
     }
 
     /**
