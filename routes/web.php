@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\CompareController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LineWebhookController;
+use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\PortfolioImportController;
 use App\Http\Controllers\ProfileController;
@@ -89,6 +90,15 @@ Route::middleware('auth')->group(function () {
         Route::put('/portfolios/{portfolio}', [PortfolioController::class, 'renamePortfolio'])->name('portfolios.rename');
         Route::get('/portfolios/{portfolio}/switch', [PortfolioController::class, 'switchPortfolio'])->name('portfolios.switch');
         Route::delete('/portfolios/{portfolio}', [PortfolioController::class, 'destroyPortfolio'])->name('portfolios.destroy');
+    });
+
+    // แผน DCA (Phase 2) — projection อนาคต + AI ตีความ · ใช้สิทธิ์เดียวกับพอร์ต
+    Route::middleware('permission:portfolio')->prefix('plan')->name('plan.')->group(function () {
+        Route::get('/', [PlanController::class, 'index'])->name('index');
+        Route::post('/', [PlanController::class, 'store'])->name('store');
+        Route::put('/{plan}', [PlanController::class, 'update'])->name('update');
+        Route::delete('/{plan}', [PlanController::class, 'destroy'])->name('destroy');
+        Route::post('/{plan}/analyze', [PlanController::class, 'analyze'])->name('analyze');
     });
 
     // Stock management (เพิ่ม/ลบ/รีเฟรชหุ้น)

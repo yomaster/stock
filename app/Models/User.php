@@ -60,6 +60,12 @@ class User extends Authenticatable
         return $this->hasMany(Portfolio::class);
     }
 
+    /** แผน DCA ของผู้ใช้ (Phase 2) */
+    public function plans(): HasMany
+    {
+        return $this->hasMany(Plan::class);
+    }
+
     // ───────────────────────── RBAC ─────────────────────────
 
     /** เช็คว่า user มีสิทธิ์ใช้กลุ่มเมนูนี้ไหม (ผ่าน role; super role bypass ทุกอย่าง) */
