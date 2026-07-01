@@ -25,10 +25,11 @@ class Role extends Model
      */
     public const MENU_GROUPS = [
         'dashboard' => ['label' => 'แดชบอร์ด',     'group' => 'หลัก'],
-        'stocks'    => ['label' => 'หุ้นทั้งหมด',   'group' => 'หุ้น'],
+        'stocks'    => ['label' => 'สินทรัพย์ทั้งหมด',   'group' => 'หุ้น'],
         'compare'   => ['label' => 'เปรียบเทียบ',   'group' => 'หุ้น'],
-        'manage'    => ['label' => 'จัดการหุ้น',    'group' => 'หุ้น'],
+        'manage'    => ['label' => 'จัดการสินทรัพย์', 'group' => 'หุ้น'],
         'portfolio' => ['label' => 'พอร์ตการลงทุน', 'group' => 'หุ้น'],
+        'plan'      => ['label' => 'แผน DCA',       'group' => 'หุ้น'],
         'users'     => ['label' => 'จัดการผู้ใช้',   'group' => 'ระบบ'],
         'settings'  => ['label' => 'ตั้งค่าระบบ',    'group' => 'ระบบ'],
     ];

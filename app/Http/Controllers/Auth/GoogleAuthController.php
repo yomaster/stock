@@ -152,7 +152,7 @@ class GoogleAuthController extends Controller
         }
         $role = Role::firstOrCreate(
             ['name' => 'สมาชิก'],
-            ['permissions' => ['dashboard', 'stocks', 'compare', 'manage', 'portfolio'], 'is_super' => false]
+            ['permissions' => ['dashboard', 'stocks', 'compare', 'manage', 'portfolio', 'plan'], 'is_super' => false]
         );
         return $role->id;
     }

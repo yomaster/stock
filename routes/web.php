@@ -93,8 +93,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/portfolios/{portfolio}', [PortfolioController::class, 'destroyPortfolio'])->name('portfolios.destroy');
     });
 
-    // แผน DCA (Phase 2) — projection อนาคต + AI ตีความ · ใช้สิทธิ์เดียวกับพอร์ต
-    Route::middleware('permission:portfolio')->prefix('plan')->name('plan.')->group(function () {
+    // แผน DCA (Phase 2) — projection อนาคต + AI ตีความ · สิทธิ์ 'plan' แยกต่างหาก
+    Route::middleware('permission:plan')->prefix('plan')->name('plan.')->group(function () {
         Route::get('/', [PlanController::class, 'index'])->name('index');
         Route::post('/', [PlanController::class, 'store'])->name('store');
         Route::put('/{plan}', [PlanController::class, 'update'])->name('update');
