@@ -70,12 +70,30 @@ class PortfolioImportController extends Controller
         foreach ($list as $r) {
             $type     = (($r['type'] ?? 'buy') === 'sell') ? 'sell' : 'buy';
             $symbol   = strtoupper(trim($r['symbol'] ?? ''));
-            $shares   = (float) ($r['shares'] ?? 0);
-            $price    = (float) ($r['price'] ?? 0);
             $amount   = (float) ($r['amount'] ?? 0);
             $currency = strtoupper(trim($r['currency'] ?? ''));
             $datetime = $this->parseDatetime($r['datetime'] ?? null);
             $note     = trim((string) ($r['note'] ?? '')); // ที่มา เช่น "สับเปลี่ยนจาก X"
+
+            // ── ทองคำจริง (ออมทอง/ซื้อขายทอง): แปลงน้ำหนัก (กรัม/oz/บาททอง) → บาททอง ──
+            // ตรวจจากการ "มี weight (น้ำหนัก)" เป็นหลัก → รองรับ symbol อื่น เช่น MTS-GOLD (Dime)
+            // ⚠️ กองทุนทอง (K-GOLD) มี "หน่วย" ไม่มี weight → ไม่เข้าเงื่อนไขนี้ (ยังเป็น fund)
+            $weight      = (float) ($r['weight'] ?? 0);
+            $isGold      = $weight > 0 || $symbol === 'GOLD' || strtolower((string) ($r['asset'] ?? '')) === 'gold';
+            $weightLabel = '';
+            if ($isGold) {
+                $symbol = 'GOLD';
+                $unit   = (string) ($r['weight_unit'] ?? 'g');
+                $shares = $this->goldToBahtGold($weight, $unit); // บาททอง
+                $price  = ($shares > 0 && $amount > 0) ? $amount / $shares : 0;
+                // สกุลของเงินที่จ่าย/ได้รับ อ่านตามจริง (Dime: ซื้อ=บาท ขาย=USD) — ไม่ fix THB
+                $currency = in_array($currency, ['THB', 'USD'], true) ? $currency : 'THB';
+                $weightLabel = $weight > 0 ? $this->goldWeightLabel($weight, $unit, $shares) : '';
+            } else {
+                $shares = (float) ($r['shares'] ?? 0);
+                $price  = (float) ($r['price'] ?? 0);
+            }
+
             if ($symbol === '' || $shares <= 0) {
                 continue; // ข้อมูลไม่ครบ → ข้าม
             }
@@ -85,7 +103,7 @@ class PortfolioImportController extends Controller
             // หาสินทรัพย์ + เพิ่มให้อัตโนมัติถ้ายังไม่ติดตาม (รองรับทั้งหุ้น Yahoo และกองทุน SEC)
             [$stock, $wasNew] = $this->ensureTracked($user, $symbol);
             if (!$stock) {
-                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $fxRate, $datetime, 'invalid', $note);
+                $rows[] = $this->row($type, $symbol, null, $shares, $price, $amount, $currency, $fxRate, $datetime, 'invalid', $note, $weightLabel);
                 continue;
             }
             if ($wasNew) {
@@ -97,7 +115,7 @@ class PortfolioImportController extends Controller
 
             // เช็คซ้ำ: สินทรัพย์ + วันที่ + จำนวนหน่วย (จับได้ทุกกรณี รวม item เดิมที่ไม่มีเวลา)
             $rows[] = $this->row($type, $stock->symbol, $stock->id, $shares, $price, $amount, $currency, $fxRate, $datetime,
-                $this->isDuplicate($portfolio, $stock->id, $datetime, $shares) ? 'duplicate' : 'new', $note);
+                $this->isDuplicate($portfolio, $stock->id, $datetime, $shares) ? 'duplicate' : 'new', $note, $weightLabel);
         }
 
         return response()->json([
@@ -273,21 +291,50 @@ class PortfolioImportController extends Controller
         return [$stock, true];
     }
 
-    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?float $fxRate, ?Carbon $dt, string $status, string $note = ''): array
+    private function row(string $type, string $symbol, ?int $stockId, float $shares, float $price, float $amount, string $currency, ?float $fxRate, ?Carbon $dt, string $status, string $note = '', string $weightLabel = ''): array
     {
         return [
-            'type'     => $type, // buy | sell
-            'symbol'   => $symbol,
-            'stock_id' => $stockId,
-            'shares'   => $shares,
-            'price'    => $price,
-            'amount'   => $amount,
-            'currency' => $currency,
-            'fx_rate'  => $fxRate,
-            'datetime' => $dt?->format('Y-m-d H:i:s'),
-            'note'     => $note, // ที่มา (สับเปลี่ยน) — โชว์ใน preview + เก็บลง DB
-            'status'   => $status, // new | duplicate | invalid
+            'type'         => $type, // buy | sell
+            'symbol'       => $symbol,
+            'stock_id'     => $stockId,
+            'shares'       => $shares,
+            'price'        => $price,
+            'amount'       => $amount,
+            'currency'     => $currency,
+            'fx_rate'      => $fxRate,
+            'datetime'     => $dt?->format('Y-m-d H:i:s'),
+            'note'         => $note, // ที่มา (สับเปลี่ยน) — โชว์ใน preview + เก็บลง DB
+            'weight_label' => $weightLabel, // เฉพาะทอง: "0.2125 ก. → 0.0139 บาททอง" (โชว์อย่างเดียว)
+            'status'       => $status, // new | duplicate | invalid
         ];
+    }
+
+    // ── ทองคำ: แปลงหน่วยน้ำหนัก → บาททอง (หน่วยที่ระบบเก็บใน portfolio_items.shares) ──
+    private const GRAMS_PER_BAHT_GOLD = 15.244;  // ทองแท่ง 96.5% 1 บาท = 15.244 กรัม
+    private const GRAMS_PER_OZ        = 31.1035; // 1 troy ounce
+
+    private function goldToBahtGold(float $weight, string $unit): float
+    {
+        if ($weight <= 0) {
+            return 0;
+        }
+        $u = strtolower(trim($unit));
+        $grams = match (true) {
+            str_contains($u, 'oz'), str_contains($u, 'ออนซ')          => $weight * self::GRAMS_PER_OZ,
+            str_contains($u, 'บาท'), $u === 'baht'                     => $weight * self::GRAMS_PER_BAHT_GOLD, // เป็นบาททองอยู่แล้ว
+            default                                                    => $weight, // กรัม (ค่าเริ่มต้น)
+        };
+        return round($grams / self::GRAMS_PER_BAHT_GOLD, 7);
+    }
+
+    /** label โชว์ใน preview: น้ำหนักเดิม → บาททอง (ให้ user ตรวจว่าถูก) */
+    private function goldWeightLabel(float $weight, string $unit, float $bahtGold): string
+    {
+        $u = strtolower(trim($unit));
+        $unitLabel = (str_contains($u, 'oz') || str_contains($u, 'ออนซ')) ? 'oz'
+            : ((str_contains($u, 'บาท') || $u === 'baht') ? 'บาททอง' : 'ก.');
+        return rtrim(rtrim(number_format($weight, 4), '0'), '.') . " {$unitLabel} → "
+            . rtrim(rtrim(number_format($bahtGold, 7), '0'), '.') . ' บาททอง';
     }
 
     /** เช็คซ้ำ: มี item หุ้นนี้ + วันเดียวกัน + จำนวนหุ้นเท่ากัน อยู่แล้วไหม (จับ item เดิมที่ไม่มีเวลาได้ด้วย) */
@@ -363,6 +410,19 @@ layout และศัพท์ต่างกัน — ให้ยึด "ค
     {type:"sell", symbol:"A", ...(ขาออก), note:"สับเปลี่ยนไป B"}
     {type:"buy",  symbol:"B", ...(ขาเข้า), note:"สับเปลี่ยนจาก A"}
 
+════════ ทองคำจริง (ออมทอง / ซื้อขายทองออนไลน์) ════════
+ทองคำ "จริง" ที่วัดเป็นน้ำหนัก — แอปเช่น Gold Now (ฮั่วเซ่งเฮง), Dime (MTS-GOLD), ออมทอง, YLG, MTS
+สังเกต: รายการมี "น้ำหนักทอง" เป็น กรัม/ออนซ์(oz) — (คนละอย่างกับ "กองทุนทอง" เช่น K-GOLD ที่นับเป็น "หน่วย")
+- symbol: ใส่ "GOLD" เสมอ — แม้แอปจะแสดงชื่ออื่น เช่น "MTS-GOLD", "GOLD Wallet", "ทองคำ 96.5%" ก็ตอบ "GOLD"
+- type: "สั่งซื้อ"/"ซื้อ"/"ออมทอง"/"ซื้อทอง" = buy · "ขาย"/"ขายคืน"/"ขายทอง" = sell
+- weight: ตัวเลข "น้ำหนัก" ของรายการ (เช่น 0.2125, 0.0070) — คำพ้อง: "น้ำหนักทอง", "น้ำหนัก", "Weight" (สำคัญมาก ต้องอ่านให้ได้)
+- weight_unit: "g" ถ้า กรัม/gram · "oz" ถ้า ออนซ์/oz/ounce · "baht" ถ้า บาท/บาททอง
+- amount: มูลค่าเงินของรายการ ("ราคารวม"/"จำนวนเงิน"/ตัวเลขเงินก้อนใหญ่ที่มุมขวา)
+- currency: อ่าน "ตามจริง" ของ amount → "บาท"/THB = "THB" · "USD"/"\$" = "USD"
+  (บางแอปเช่น Dime: รายการ "ซื้อ" เป็นบาท แต่ "ขาย" เป็น USD — ให้ดูหน่วยเงินของแต่ละรายการเอง)
+- shares, price: ใส่ null (ระบบคำนวณจาก weight + amount เอง — คุณไม่ต้องแปลงหน่วย)
+- ข้ามรายการทองที่ "รอทำรายการ/รอราคา/ไม่สำเร็จ" (เอาเฉพาะ "เสร็จสมบูรณ์/สำเร็จ")
+
 ════════ ข้ามเด็ดขาด ════════
 - ปันผล: "เงินปันผล", "ปันผล", "Dividend", "ดอกเบี้ย", "รับเงินเข้า"
 - รายการไม่สำเร็จ: เครื่องหมายตกใจสีแดง (!), "ไม่สำเร็จ", "ล้มเหลว", "ยกเลิก", "Cancelled",
@@ -373,8 +433,9 @@ layout และศัพท์ต่างกัน — ให้ยึด "ค
 ════════ ฟิลด์แต่ละรายการ ════════
 - type: "buy" หรือ "sell"
 - symbol: ชื่อย่อ/รหัสกองทุน ตัวพิมพ์ใหญ่ (เลือก "รหัสภาษาอังกฤษ" เสมอ ไม่ใช่ชื่อไทยยาวๆ)
-    หุ้น เช่น NVDA, PTT · กองทุน เช่น K-GHRMF, ONE-UGG-ASSF, K-GOLD-A(D)
-- shares: จำนวนหน่วย/จำนวนหุ้น (คำพ้อง: "จำนวนหน่วย", "หน่วยลงทุน", "Units", "จำนวนหุ้น")
+    หุ้น เช่น NVDA, PTT · กองทุน เช่น K-GHRMF, ONE-UGG-ASSF, K-GOLD-A(D) · ทองคำ = "GOLD" เสมอ
+- shares: จำนวนหน่วย/จำนวนหุ้น (คำพ้อง: "จำนวนหน่วย", "หน่วยลงทุน", "Units", "จำนวนหุ้น") · ทองใช้ null
+- weight, weight_unit: เฉพาะทองคำ (ดูหัวข้อ "ทองคำ") — สินทรัพย์อื่นไม่ต้องใส่
 - price: ราคา/หน่วย หรือ NAV (คำพ้อง: "ราคาต่อหน่วย", "NAV", "มูลค่าหน่วยลงทุน", "ราคาที่ทำรายการ", "Price")
 - amount: มูลค่าทั้งรายการ (คำพ้อง: "จำนวนเงิน", "มูลค่าซื้อ/ขาย", "ยอดเงิน", "Amount")
 - currency: หน่วย "บาท"/THB = "THB", "USD"/"\$" = "USD" (กองทุนไทยเป็น THB เสมอ)
@@ -393,7 +454,7 @@ layout และศัพท์ต่างกัน — ให้ยึด "ค
 - ใช้ null ถ้าไม่มีค่า ห้ามใส่ "-" หรือ "N/A"
 
 ตอบเป็น JSON array ล้วน ห้ามมี markdown/คำอธิบาย/comma เกิน:
-[{"type":"buy","symbol":"K-GHRMF","shares":38.2892,"price":13.0585,"amount":500.00,"currency":"THB","datetime":"2026-06-18 00:00:00","note":""},{"type":"sell","symbol":"ONE-UGG-ASSF","shares":381.7249,"price":22.83,"amount":8714.02,"currency":"THB","datetime":"2022-08-22 00:00:00","note":"สับเปลี่ยนไป ONE-TCMSSF-SSF"},{"type":"buy","symbol":"ONE-TCMSSF-SSF","shares":792.7962,"price":10.99,"amount":8714.02,"currency":"THB","datetime":"2022-08-22 00:00:00","note":"สับเปลี่ยนจาก ONE-UGG-ASSF"}]
+[{"type":"buy","symbol":"K-GHRMF","shares":38.2892,"price":13.0585,"amount":500.00,"currency":"THB","datetime":"2026-06-18 00:00:00","note":""},{"type":"buy","symbol":"GOLD","weight":0.2125,"weight_unit":"g","shares":null,"price":null,"amount":1000.00,"currency":"THB","datetime":"2026-03-19 19:15:34","note":""},{"type":"sell","symbol":"GOLD","weight":0.0070,"weight_unit":"oz","shares":null,"price":null,"amount":28.96,"currency":"USD","datetime":"2026-06-19 13:08:39","note":""}]
 ถ้าไม่มีรายการธุรกรรมเลย (หรือเป็นหน้าสรุปพอร์ต) ตอบ []
 TXT;
     }

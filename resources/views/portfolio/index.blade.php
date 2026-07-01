@@ -818,6 +818,8 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                     <option value="buy" ${!sell?'selected':''}>ซื้อ</option>
                     <option value="sell" ${sell?'selected':''}>ขาย</option></select>`;
             const noteHtml = r.note ? `<div class="text-violet-500 text-[11px]">🔄 ${r.note}</div>` : '';
+            // ทอง: โชว์น้ำหนักเดิม → บาททอง (จำนวนหน่วยเก็บเป็นบาททอง)
+            const goldHtml = r.weight_label ? `<div class="text-amber-500 text-[11px]">🥇 ${r.weight_label}</div>` : '';
             const tr = document.createElement('tr');
             tr.dataset.stockId = r.stock_id || '';
             tr.dataset.note = r.note || '';
@@ -828,7 +830,7 @@ document.getElementById('editModal')?.addEventListener('click', e => { if (e.tar
                         ${typeSel}
                         <input type="text" value="${r.symbol || ''}" class="imp-symbol w-24 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 uppercase">
                     </div>
-                    <div class="text-[11px] font-normal mt-0.5">${tag}${noteHtml}</div>
+                    <div class="text-[11px] font-normal mt-0.5">${tag}${noteHtml}${goldHtml}</div>
                 </td>
                 <td class="py-2 pr-2 align-top"><input type="number" step="any" value="${r.shares}" class="imp-shares w-24 border border-slate-200 rounded-lg px-2 py-1"></td>
                 <td class="py-2 pr-2 align-top"><input type="number" step="any" value="${r.price}" class="imp-price w-20 border border-slate-200 rounded-lg px-2 py-1"></td>
