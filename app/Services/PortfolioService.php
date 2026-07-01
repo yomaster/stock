@@ -272,6 +272,102 @@ class PortfolioService
     }
 
     /**
+     * รวมทุกพอร์ตของ user (cross-portfolio overview)
+     * คืน:
+     *   portfolios[]  = สรุปรายพอร์ต (มูลค่า/ต้นทุน/กำไร + สัดส่วนของมูลค่ารวม)
+     *   totals        = มูลค่า/ต้นทุน/กำไรยังไม่รับรู้ + กำไรที่รับรู้แล้ว รวมทุกพอร์ต
+     *   by_category   = แยกตามชนิดสินทรัพย์ (value/cost/pnl/pct/allocation)
+     *   top_holdings  = รวมสินทรัพย์เดียวกันข้ามพอร์ต เรียงมูลค่ามาก→น้อย
+     *
+     * @param \Illuminate\Support\Collection|iterable $portfolios พอร์ตของ user (โหลด items มาแล้วยิ่งดี)
+     */
+    public function crossPortfolioOverview($portfolios): array
+    {
+        $rows       = [];
+        $byCategory = [];
+        $bySymbol   = [];
+        $sumValue = 0;
+        $sumCost  = 0;
+        $sumRealized = 0;
+
+        foreach ($portfolios as $pf) {
+            $h = $this->buildHoldings($pf);
+
+            $rows[] = [
+                'id'                => $pf->id,
+                'name'              => $pf->name,
+                'category'          => $pf->category,
+                'value_thb'         => $h['total_value_thb'],
+                'cost_thb'          => $h['total_cost_thb'],
+                'unrealized_pl_thb' => $h['total_unrealized_pl'],
+                'unrealized_pl_pct' => $h['total_unrealized_pct'],
+                'realized_pl_thb'   => $h['total_realized_pl'],
+                'positions_count'   => count($h['positions']),
+            ];
+
+            $sumValue    += $h['total_value_thb'];
+            $sumCost     += $h['total_cost_thb'];
+            $sumRealized += $h['total_realized_pl'];
+
+            foreach ($h['positions'] as $pos) {
+                // รวมตามชนิด
+                $cat = $pos['asset_category'] ?? 'stock';
+                $byCategory[$cat] ??= ['value' => 0, 'cost' => 0, 'count' => 0];
+                $byCategory[$cat]['value'] += $pos['value_thb'];
+                $byCategory[$cat]['cost']  += $pos['cost_thb'];
+                $byCategory[$cat]['count']++;
+
+                // รวมตาม symbol (สินทรัพย์เดียวกันข้ามพอร์ต)
+                $sym = $pos['symbol'];
+                $bySymbol[$sym] ??= [
+                    'symbol' => $sym, 'name' => $pos['name'], 'asset_category' => $cat,
+                    'value_thb' => 0, 'cost_thb' => 0,
+                ];
+                $bySymbol[$sym]['value_thb'] += $pos['value_thb'];
+                $bySymbol[$sym]['cost_thb']  += $pos['cost_thb'];
+            }
+        }
+
+        // สัดส่วนของมูลค่ารวม + กำไรต่อพอร์ต
+        foreach ($rows as &$r) {
+            $r['allocation'] = $sumValue > 0 ? ($r['value_thb'] / $sumValue) * 100 : 0;
+        }
+        unset($r);
+        usort($rows, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
+
+        foreach ($byCategory as &$b) {
+            $b['pnl']        = $b['value'] - $b['cost'];
+            $b['pnl_pct']    = $b['cost'] > 0 ? ($b['pnl'] / $b['cost']) * 100 : 0;
+            $b['allocation'] = $sumValue > 0 ? ($b['value'] / $sumValue) * 100 : 0;
+        }
+        unset($b);
+        uasort($byCategory, fn ($a, $b) => $b['value'] <=> $a['value']);
+
+        $holdings = array_values($bySymbol);
+        foreach ($holdings as &$hh) {
+            $hh['unrealized_pl_thb'] = $hh['value_thb'] - $hh['cost_thb'];
+            $hh['unrealized_pl_pct'] = $hh['cost_thb'] > 0 ? (($hh['value_thb'] - $hh['cost_thb']) / $hh['cost_thb']) * 100 : 0;
+            $hh['allocation']        = $sumValue > 0 ? ($hh['value_thb'] / $sumValue) * 100 : 0;
+        }
+        unset($hh);
+        usort($holdings, fn ($a, $b) => $b['value_thb'] <=> $a['value_thb']);
+
+        return [
+            'portfolios'   => $rows,
+            'by_category'  => $byCategory,
+            'top_holdings' => $holdings,
+            'totals'       => [
+                'value_thb'         => $sumValue,
+                'cost_thb'          => $sumCost,
+                'unrealized_pl_thb' => $sumValue - $sumCost,
+                'unrealized_pl_pct' => $sumCost > 0 ? (($sumValue - $sumCost) / $sumCost) * 100 : 0,
+                'realized_pl_thb'   => $sumRealized,
+                'portfolios_count'  => count($rows),
+            ],
+        ];
+    }
+
+    /**
      * แปลงมูลค่าธุรกรรม (เงินซื้อ/ขาย) เป็น THB
      * - ใช้ fx_rate ที่ user กรอกเอง (เรทจริงจากโบรก) ก่อน — ถ้าไม่มีใช้ FX ตลาดวันนั้น
      * - รายการสกุล THB ไม่ต้องแปลง

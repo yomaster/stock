@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\CompareController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PortfolioController;
@@ -72,6 +73,10 @@ Route::middleware('auth')->group(function () {
         Route::put('users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
         Route::resource('roles', RoleController::class)->except(['show']);
     });
+
+    // ภาพรวมรวมทุกพอร์ต (cross-portfolio overview)
+    Route::get('/overview', [OverviewController::class, 'index'])
+        ->middleware('permission:portfolio')->name('overview');
 
     // พอร์ตการลงทุน + AI health check
     Route::middleware('permission:portfolio')->prefix('portfolio')->name('portfolio.')->group(function () {

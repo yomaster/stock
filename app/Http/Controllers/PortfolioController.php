@@ -78,12 +78,12 @@ class PortfolioController extends Controller
         return back()->with('success', "บันทึกพอร์ต \"{$portfolio->name}\" แล้ว");
     }
 
-    /** สลับพอร์ตที่กำลังดู */
+    /** สลับพอร์ตที่กำลังดู → ไปหน้าพอร์ต (ใช้ทั้ง dropdown สลับ + ปุ่ม "เปิด" ในหน้า overview) */
     public function switchPortfolio(Portfolio $portfolio)
     {
         $this->guardOwnsPortfolio($portfolio);
         session(['active_portfolio_id' => $portfolio->id]);
-        return back()->with('success', "เปลี่ยนไปพอร์ต \"{$portfolio->name}\"");
+        return redirect()->route('portfolio.index')->with('success', "เปลี่ยนไปพอร์ต \"{$portfolio->name}\"");
     }
 
     /** ลบพอร์ต (กันลบจนเหลือ 0) */
