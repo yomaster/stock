@@ -12,6 +12,7 @@ use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\LineWebhookController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PortfolioImportController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingsController;
@@ -77,6 +78,12 @@ Route::middleware('auth')->group(function () {
     // ภาพรวมรวมทุกพอร์ต (cross-portfolio overview)
     Route::get('/overview', [OverviewController::class, 'index'])
         ->middleware('permission:portfolio')->name('overview');
+
+    // รายงานภาษีรายปี (realized P/L + ยอดลงทุนลดหย่อน RMF/SSF/ThaiESG) + export CSV
+    Route::middleware('permission:portfolio')->group(function () {
+        Route::get('/report', [ReportController::class, 'index'])->name('report');
+        Route::get('/report/export', [ReportController::class, 'export'])->name('report.export');
+    });
 
     // พอร์ตการลงทุน + AI health check
     Route::middleware('permission:portfolio')->prefix('portfolio')->name('portfolio.')->group(function () {

@@ -368,6 +368,144 @@ class PortfolioService
     }
 
     /**
+     * รายงานภาษีรายปี (ข้ามทุกพอร์ต):
+     *  - realized_by_year : กำไร/ขาดทุนที่รับรู้ (จากการขาย) รายปี ทุกสินทรัพย์ (Average Cost — ให้ตรงกับหน้าพอร์ต)
+     *  - contrib_by_year  : ยอด "ซื้อ" กองลดหย่อน RMF/SSF/ThaiESG รายปี (ไว้ยื่นลดหย่อนภาษี)
+     *  + detail ราย transaction (ไว้ export CSV)
+     * ปี = ปีปฏิทินของ purchase_date (แสดง พ.ศ. = +543)
+     *
+     * @param \Illuminate\Support\Collection|iterable $portfolios พอร์ตของ user
+     */
+    public function realizedReport($portfolios): array
+    {
+        $rate = $this->currentFx();
+        $realizedByYear = [];
+        $realizedDetail = [];
+        $contribByYear  = [];
+        $contribDetail  = [];
+
+        foreach ($portfolios as $pf) {
+            $items = $pf->items()->with('stock')->get();
+
+            // ── realized P/L: จับกลุ่มตามหุ้น หา avg cost (Average Cost แบบเดียวกับ buildHoldings) ──
+            $byStock = [];
+            foreach ($items as $item) {
+                if (!$item->stock) {
+                    continue;
+                }
+                $byStock[$item->stock->id]['stock']   = $item->stock;
+                $byStock[$item->stock->id]['items'][] = $item;
+            }
+
+            foreach ($byStock as $g) {
+                $stock = $g['stock'];
+                $isUsd = strtoupper($stock->currency) === 'USD';
+
+                $buyShares = 0;
+                $buyCost   = 0;
+                foreach ($g['items'] as $it) {
+                    if (($it->type ?? 'buy') !== 'sell') {
+                        $fx = $it->purchase_date ? $this->historicalFx($it->purchase_date->toDateString()) : $rate;
+                        $buyShares += $it->shares;
+                        $buyCost   += $this->itemThb($it, $isUsd, $fx);
+                    }
+                }
+                $avg = $buyShares > 0 ? $buyCost / $buyShares : 0;
+
+                foreach ($g['items'] as $it) {
+                    if (($it->type ?? 'buy') !== 'sell') {
+                        continue;
+                    }
+                    $date     = $it->purchase_date ?? $it->created_at;
+                    $ce       = (int) $date->format('Y');
+                    $fx       = $this->historicalFx($date->toDateString());
+                    $proceeds = $this->itemThb($it, $isUsd, $fx);
+                    $cost     = $it->shares * $avg;
+                    $pl       = $proceeds - $cost;
+
+                    $realizedByYear[$ce] ??= ['pl' => 0, 'proceeds' => 0, 'cost' => 0, 'count' => 0];
+                    $realizedByYear[$ce]['pl']       += $pl;
+                    $realizedByYear[$ce]['proceeds'] += $proceeds;
+                    $realizedByYear[$ce]['cost']     += $cost;
+                    $realizedByYear[$ce]['count']++;
+
+                    $realizedDetail[] = [
+                        'year_ce'      => $ce,
+                        'date'         => $date->toDateString(),
+                        'portfolio'    => $pf->name,
+                        'symbol'       => $stock->symbol,
+                        'name'         => $stock->name,
+                        'shares'       => (float) $it->shares,
+                        'proceeds_thb' => round($proceeds, 2),
+                        'cost_thb'     => round($cost, 2),
+                        'pl_thb'       => round($pl, 2),
+                    ];
+                }
+            }
+
+            // ── contributions: ยอดซื้อกองลดหย่อน RMF/SSF/ThaiESG รายปี ──
+            foreach ($items as $item) {
+                if (($item->type ?? 'buy') !== 'buy' || !$item->stock) {
+                    continue;
+                }
+                $taxType = $this->classifyTaxFund($item->stock->symbol);
+                if (!$taxType) {
+                    continue;
+                }
+                $date = $item->purchase_date ?? $item->created_at;
+                $ce   = (int) $date->format('Y');
+                $fx   = $this->historicalFx($date->toDateString());
+                $amt  = $this->itemThb($item, strtoupper($item->stock->currency) === 'USD', $fx);
+
+                $contribByYear[$ce] ??= ['RMF' => 0, 'SSF' => 0, 'ThaiESG' => 0, 'total' => 0];
+                $contribByYear[$ce][$taxType] += $amt;
+                $contribByYear[$ce]['total']  += $amt;
+
+                $contribDetail[] = [
+                    'year_ce'    => $ce,
+                    'date'       => $date->toDateString(),
+                    'portfolio'  => $pf->name,
+                    'symbol'     => $item->stock->symbol,
+                    'name'       => $item->stock->name,
+                    'tax_type'   => $taxType,
+                    'amount_thb' => round($amt, 2),
+                ];
+            }
+        }
+
+        krsort($realizedByYear); // ปีใหม่ก่อน
+        krsort($contribByYear);
+        usort($realizedDetail, fn ($a, $b) => strcmp($b['date'], $a['date']));
+        usort($contribDetail, fn ($a, $b) => strcmp($b['date'], $a['date']));
+
+        return [
+            'realized_by_year' => $realizedByYear,
+            'realized_detail'  => $realizedDetail,
+            'contrib_by_year'  => $contribByYear,
+            'contrib_detail'   => $contribDetail,
+        ];
+    }
+
+    /**
+     * เดาประเภทกองลดหย่อนภาษีจากรหัสกอง (heuristic — ยึดคำท้าย/คำในชื่อ)
+     * ลำดับตรวจ: RMF → ThaiESG → SSF (กัน ThaiESG/SSF ซ้อนกัน) · คืน null ถ้าไม่ใช่กองลดหย่อน
+     */
+    public function classifyTaxFund(string $symbol): ?string
+    {
+        $s = strtoupper($symbol);
+        if (str_contains($s, 'RMF')) {
+            return 'RMF';
+        }
+        if (str_contains($s, 'THAIESG') || str_contains($s, 'TESG') || str_ends_with($s, 'ESG')) {
+            return 'ThaiESG';
+        }
+        if (str_contains($s, 'SSF')) { // ครอบคลุม -SSF, ASSF (share class ของ SSF)
+            return 'SSF';
+        }
+        return null;
+    }
+
+    /**
      * แปลงมูลค่าธุรกรรม (เงินซื้อ/ขาย) เป็น THB
      * - ใช้ fx_rate ที่ user กรอกเอง (เรทจริงจากโบรก) ก่อน — ถ้าไม่มีใช้ FX ตลาดวันนั้น
      * - รายการสกุล THB ไม่ต้องแปลง
