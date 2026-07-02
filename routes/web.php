@@ -77,10 +77,10 @@ Route::middleware('auth')->group(function () {
 
     // ภาพรวมรวมทุกพอร์ต (cross-portfolio overview)
     Route::get('/overview', [OverviewController::class, 'index'])
-        ->middleware('permission:portfolio')->name('overview');
+        ->middleware('permission:overview')->name('overview');
 
     // รายงานภาษีรายปี (realized P/L + ยอดลงทุนลดหย่อน RMF/SSF/ThaiESG) + export CSV
-    Route::middleware('permission:portfolio')->group(function () {
+    Route::middleware('permission:report')->group(function () {
         Route::get('/report', [ReportController::class, 'index'])->name('report');
         Route::get('/report/export', [ReportController::class, 'export'])->name('report.export');
     });

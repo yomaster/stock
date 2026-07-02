@@ -32,37 +32,88 @@
                     <span class="font-bold text-slate-800 text-base tracking-tight">Invest<span class="text-indigo-600">AI</span></span>
                 </a>
 
+                @php
+                    // ── โครงเมนู 4 กลุ่ม (แบบ A) — ใช้ร่วม desktop + mobile ──
+                    // แต่ละไอเทมมีไอคอนไม่ซ้ำกัน · 'active' = pattern สำหรับ routeIs (ไฮไลต์เมื่ออยู่หน้าย่อย)
+                    $user = auth()->user();
+                    $can  = fn ($perm) => $user && $user->canAccessMenuGroup($perm);
+                    $isActive = fn ($patterns) => request()->routeIs(...(array) $patterns);
+
+                    $ic = [
+                        'home'     => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+                        'briefcase'=> 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+                        'wallet'   => 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+                        'pie'      => 'M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z',
+                        'calendar' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+                        'doc'      => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+                        'collection'=>'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
+                        'bars'     => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+                        'compare'  => 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
+                        'adjust'   => 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+                        'cog'      => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+                        'gear'     => 'M4.5 12a7.5 7.5 0 0015 0m-15 0a7.5 7.5 0 1115 0m-15 0H3m16.5 0H21m-1.5 0H12m-8.457 3.077l1.41-.513m14.095-5.13l1.41-.513M5.106 17.785l1.15-.964m11.49-9.642l1.149-.964M7.501 19.795l.75-1.3m7.5-12.99l.75-1.3m-6.063 16.658l.26-1.477m2.605-14.772l.26-1.477m0 17.726l-.26-1.477M10.698 4.614l-.26-1.477M16.5 19.794l-.75-1.299M7.5 4.205L12 12m6.894 5.785l-1.149-.964M6.256 7.178l-1.15-.964m15.352 8.864l-1.41-.513M4.954 9.435l-1.41-.514M12.002 12l-3.75 6.495',
+                        'users'    => 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-3-6.62',
+                    ];
+
+                    $menu = [
+                        ['label' => 'Dashboard', 'route' => 'dashboard', 'perm' => 'dashboard', 'icon' => $ic['home'], 'active' => 'dashboard'],
+                        ['label' => 'พอร์ต', 'icon' => $ic['briefcase'], 'children' => [
+                            ['label' => 'พอร์ตของฉัน', 'route' => 'portfolio.index', 'perm' => 'portfolio', 'icon' => $ic['wallet'], 'active' => 'portfolio.*'],
+                            ['label' => 'พอร์ตรวม', 'route' => 'overview', 'perm' => 'overview', 'icon' => $ic['pie'], 'active' => 'overview'],
+                            ['label' => 'แผน DCA', 'route' => 'plan.index', 'perm' => 'plan', 'icon' => $ic['calendar'], 'active' => 'plan.*'],
+                            ['label' => 'รายงานภาษี', 'route' => 'report', 'perm' => 'report', 'icon' => $ic['doc'], 'active' => ['report', 'report.*']],
+                        ]],
+                        ['label' => 'สินทรัพย์', 'icon' => $ic['collection'], 'children' => [
+                            ['label' => 'สินทรัพย์ทั้งหมด', 'route' => 'assets.index', 'perm' => 'stocks', 'icon' => $ic['bars'], 'active' => ['assets.index', 'assets.show', 'assets.backtest', 'assets.analyze']],
+                            ['label' => 'เปรียบเทียบ', 'route' => 'assets.compare', 'perm' => 'compare', 'icon' => $ic['compare'], 'active' => 'assets.compare'],
+                            ['label' => 'จัดการสินทรัพย์', 'route' => 'manage.index', 'perm' => 'manage', 'icon' => $ic['adjust'], 'active' => ['manage.*', 'funds.*']],
+                        ]],
+                        ['label' => 'ตั้งค่าระบบ', 'icon' => $ic['cog'], 'children' => [
+                            ['label' => 'ตั้งค่า', 'route' => 'settings.index', 'perm' => 'settings', 'icon' => $ic['gear'], 'active' => 'settings.*'],
+                            ['label' => 'ผู้ใช้งาน', 'route' => 'admin.users.index', 'perm' => 'users', 'icon' => $ic['users'], 'active' => ['admin.users.*', 'admin.roles.*']],
+                        ]],
+                    ];
+                @endphp
+
                 {{-- Desktop Nav (ซ่อนบนจอเล็ก — ใช้แฮมเบอร์เกอร์แทน) --}}
                 <nav class="hidden md:flex items-center gap-1">
-                    @php
-                        // 'perm' = menu group ที่ต้องมีสิทธิ์ถึงจะเห็นเมนู (gate ด้วย canAccessMenuGroup)
-                        $navItems = [
-                            ['route' => 'dashboard',    'perm' => 'dashboard', 'label' => 'Dashboard',  'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
-                            ['route' => 'assets.index', 'perm' => 'stocks', 'label' => 'สินทรัพย์ทั้งหมด', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-                            ['route' => 'assets.compare', 'perm' => 'compare', 'label' => 'เปรียบเทียบ', 'icon' => 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z'],
-                            ['route' => 'portfolio.index', 'perm' => 'portfolio', 'label' => 'พอร์ต', 'icon' => 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z'],
-                            ['route' => 'overview', 'perm' => 'portfolio', 'label' => 'รวมพอร์ต', 'icon' => 'M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z'],
-                            ['route' => 'report', 'perm' => 'portfolio', 'label' => 'รายงานภาษี', 'icon' => 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
-                            ['route' => 'plan.index', 'perm' => 'plan', 'label' => 'แผน DCA', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z M3 21h18'],
-                            ['route' => 'manage.index', 'perm' => 'manage', 'label' => 'จัดการสินทรัพย์',  'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'],
-                            ['route' => 'admin.users.index', 'perm' => 'users', 'label' => 'ผู้ใช้งาน', 'icon' => 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-3-6.62'],
-                            ['route' => 'settings.index', 'perm' => 'settings', 'label' => 'ตั้งค่า', 'icon' => 'M4.5 12a7.5 7.5 0 0015 0m-15 0a7.5 7.5 0 1115 0m-15 0H3m16.5 0H21m-1.5 0H12m-8.457 3.077l1.41-.513m14.095-5.13l1.41-.513M5.106 17.785l1.15-.964m11.49-9.642l1.149-.964M7.501 19.795l.75-1.3m7.5-12.99l.75-1.3m-6.063 16.658l.26-1.477m2.605-14.772l.26-1.477m0 17.726l-.26-1.477M10.698 4.614l-.26-1.477M16.5 19.794l-.75-1.299M7.5 4.205L12 12m6.894 5.785l-1.149-.964M6.256 7.178l-1.15-.964m15.352 8.864l-1.41-.513M4.954 9.435l-1.41-.514M12.002 12l-3.75 6.495'],
-                        ];
-                        $user = auth()->user();
-                    @endphp
-                    @foreach($navItems as $item)
-                        @continue($user && !$user->canAccessMenuGroup($item['perm']))
-                        @php $active = request()->routeIs($item['route']) @endphp
-                        <a href="{{ route($item['route']) }}"
-                           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
-                                  {{ $active
-                                      ? 'bg-indigo-50 text-indigo-700'
-                                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100' }}">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/>
-                            </svg>
-                            {{ $item['label'] }}
-                        </a>
+                    @foreach($menu as $item)
+                        @if(empty($item['children']))
+                            {{-- เมนูเดี่ยว --}}
+                            @continue(!$can($item['perm']))
+                            <a href="{{ route($item['route']) }}"
+                               class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                                      {{ $isActive($item['active']) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100' }}">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/></svg>
+                                {{ $item['label'] }}
+                            </a>
+                        @else
+                            {{-- กลุ่ม dropdown --}}
+                            @php
+                                $visible = array_values(array_filter($item['children'], fn ($c) => $can($c['perm'])));
+                                $groupActive = collect($item['children'])->contains(fn ($c) => $isActive($c['active']));
+                            @endphp
+                            @continue(empty($visible))
+                            <div class="relative" data-nav-group>
+                                <button type="button" data-nav-toggle
+                                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all
+                                           {{ $groupActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100' }}">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/></svg>
+                                    {{ $item['label'] }}
+                                    <svg class="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <div data-nav-panel class="hidden absolute left-0 mt-1.5 w-56 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-50">
+                                    @foreach($visible as $c)
+                                        <a href="{{ route($c['route']) }}"
+                                           class="flex items-center gap-2.5 px-4 py-2 text-sm transition
+                                                  {{ $isActive($c['active']) ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600 hover:bg-slate-50' }}">
+                                            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $c['icon'] }}"/></svg>
+                                            {{ $c['label'] }}
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
                     @endforeach
                 </nav>
 
@@ -111,18 +162,34 @@
                 @endauth
             </div>
 
-            {{-- Mobile Nav (dropdown จากแฮมเบอร์เกอร์ — ซ่อนบนจอใหญ่) --}}
+            {{-- Mobile Nav (dropdown จากแฮมเบอร์เกอร์ — ซ่อนบนจอใหญ่) จัดเป็นกลุ่มมีหัวข้อ --}}
             @auth
             <nav id="mobileNav" class="hidden md:hidden pb-3 pt-1 space-y-1 border-t border-slate-200/60">
-                @foreach($navItems as $item)
-                    @continue($user && !$user->canAccessMenuGroup($item['perm']))
-                    @php $mActive = request()->routeIs($item['route']) @endphp
-                    <a href="{{ route($item['route']) }}"
-                       class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                              {{ $mActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' }}">
-                        <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/></svg>
-                        {{ $item['label'] }}
-                    </a>
+                @foreach($menu as $item)
+                    @if(empty($item['children']))
+                        @continue(!$can($item['perm']))
+                        <a href="{{ route($item['route']) }}"
+                           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                                  {{ $isActive($item['active']) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' }}">
+                            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/></svg>
+                            {{ $item['label'] }}
+                        </a>
+                    @else
+                        @php $visible = array_values(array_filter($item['children'], fn ($c) => $can($c['perm']))); @endphp
+                        @continue(empty($visible))
+                        <p class="px-3 pt-3 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/></svg>
+                            {{ $item['label'] }}
+                        </p>
+                        @foreach($visible as $c)
+                            <a href="{{ route($c['route']) }}"
+                               class="flex items-center gap-3 pl-6 pr-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                                      {{ $isActive($c['active']) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100' }}">
+                                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $c['icon'] }}"/></svg>
+                                {{ $c['label'] }}
+                            </a>
+                        @endforeach
+                    @endif
                 @endforeach
             </nav>
             @endauth
@@ -160,6 +227,26 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('click', function (e) {
         if (!menu.contains(e.target)) panel.classList.add('hidden');
     });
+
+    // Desktop nav group dropdowns — คลิกเปิด/ปิด, เปิดอันเดียว, คลิกนอกปิด
+    const groups = Array.from(document.querySelectorAll('[data-nav-group]'));
+    const closeAllGroups = () => groups.forEach(g => g.querySelector('[data-nav-panel]').classList.add('hidden'));
+    groups.forEach(function (g) {
+        const toggle = g.querySelector('[data-nav-toggle]');
+        const gpanel = g.querySelector('[data-nav-panel]');
+        toggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const willOpen = gpanel.classList.contains('hidden');
+            closeAllGroups();
+            panel.classList.add('hidden'); // ปิด user menu ด้วย
+            if (willOpen) gpanel.classList.remove('hidden');
+        });
+    });
+    document.addEventListener('click', function (e) {
+        groups.forEach(function (g) { if (!g.contains(e.target)) g.querySelector('[data-nav-panel]').classList.add('hidden'); });
+    });
+    // เปิด user menu → ปิด group panels
+    btn.addEventListener('click', closeAllGroups);
 
     // Mobile nav (แฮมเบอร์เกอร์) — สลับ dropdown + ไอคอน ☰ ↔ ✕
     const mobBtn = document.getElementById('mobileNavToggle');

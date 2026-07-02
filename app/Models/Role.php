@@ -29,7 +29,9 @@ class Role extends Model
         'compare'   => ['label' => 'เปรียบเทียบ',   'group' => 'หุ้น'],
         'manage'    => ['label' => 'จัดการสินทรัพย์', 'group' => 'หุ้น'],
         'portfolio' => ['label' => 'พอร์ตการลงทุน', 'group' => 'หุ้น'],
+        'overview'  => ['label' => 'พอร์ตรวม',      'group' => 'หุ้น'],
         'plan'      => ['label' => 'แผน DCA',       'group' => 'หุ้น'],
+        'report'    => ['label' => 'รายงานภาษี',    'group' => 'หุ้น'],
         'users'     => ['label' => 'จัดการผู้ใช้',   'group' => 'ระบบ'],
         'settings'  => ['label' => 'ตั้งค่าระบบ',    'group' => 'ระบบ'],
     ];
